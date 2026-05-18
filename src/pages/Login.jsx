@@ -94,7 +94,8 @@ const Login = () => {
 
       localStorage.setItem('ujconnect_user', JSON.stringify(data.user));
       localStorage.setItem('ujconnect_token', data.token);
-      navigate('/dashboard');
+      setShowAuth(false);
+      window.location.href = '/dashboard';
     } catch (err) {
       setAuthError(err.response?.data?.error || 'Registration failed. Please try again.');
     } finally {
@@ -115,7 +116,8 @@ const Login = () => {
 
       localStorage.setItem('ujconnect_user', JSON.stringify(data.user));
       localStorage.setItem('ujconnect_token', data.token);
-      navigate('/dashboard');
+      setShowAuth(false);
+      window.location.href = '/dashboard';
     } catch (err) {
       setAuthError(err.response?.data?.error || 'Invalid email or password');
     } finally {

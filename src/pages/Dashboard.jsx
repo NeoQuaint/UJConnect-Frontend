@@ -173,7 +173,9 @@ const Dashboard = () => {
           fontSize: '14px',
           flexShrink: 0,
           cursor: 'pointer'
-        }}>
+        }}
+        onClick={() => navigate('/profile')}
+        >
           {user.full_name?.charAt(0) || user.email?.charAt(0) || 'U'}
         </div>
 
@@ -218,7 +220,7 @@ const Dashboard = () => {
         </div>
       </div>
 
-      {/* Search + What's happening - ONE SECTION */}
+      {/* Search + What's happening */}
       <div style={{
         padding: '12px 20px',
         borderBottom: '1px solid #eee'
@@ -279,7 +281,7 @@ const Dashboard = () => {
         </div>
       </div>
 
-      {/* Posts */}
+      {/* Feed */}
       <div>
         {posts.map(post => (
           <div key={post.id} style={{
