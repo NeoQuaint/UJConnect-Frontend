@@ -124,6 +124,13 @@ const CommentIcon = () => (
   </svg>
 );
 
+const BadgeIcon = () => (
+  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+    <circle cx="12" cy="8" r="6"/>
+    <path d="M15.477 12.89L17 22l-5-3-5 3 1.523-9.11"/>
+  </svg>
+);
+
 const TikTokIcon = () => (
   <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
     <path d="M9 12a4 4 0 1 0 4 4V4a5 5 0 0 0 5 5"/>
@@ -187,8 +194,34 @@ const Profile = () => {
   const [avatarPreview, setAvatarPreview] = useState(false);
   const [coverPreview, setCoverPreview] = useState(false);
   const [userPosts, setUserPosts] = useState([]);
+  const [userStories, setUserStories] = useState([]);
+  const [highlights, setHighlights] = useState([]);
+  const [badges, setBadges] = useState([]);
   const [fullImage, setFullImage] = useState(null);
   const [profileSection, setProfileSection] = useState('posts');
+
+  // Avatar tap menu
+  const [showAvatarMenu, setShowAvatarMenu] = useState(false);
+  const [showStoryViewer, setShowStoryViewer] = useState(false);
+  const [storyViewerIndex, setStoryViewerIndex] = useState(0);
+
+  // Highlight viewer
+  const [viewingHighlight, setViewingHighlight] = useState(null);
+  const [highlightStoryIndex, setHighlightStoryIndex] = useState(0);
+
+  // Highlight create
+  const [showHighlightCreate, setShowHighlightCreate] = useState(false);
+  const [highlightFile, setHighlightFile] = useState(null);
+  const [highlightPreview, setHighlightPreview] = useState(null);
+  const [highlightTitle, setHighlightTitle] = useState('');
+  const [creatingHighlight, setCreatingHighlight] = useState(false);
+
+  // Badge create
+  const [showBadgeModal, setShowBadgeModal] = useState(false);
+  const [badgeTitle, setBadgeTitle] = useState('');
+  const [badgeDescription, setBadgeDescription] = useState('');
+  const [creatingBadge, setCreatingBadge] = useState(false);
+  const [viewingBadge, setViewingBadge] = useState(null);
 
   const [showComposer, setShowComposer] = useState(false);
   const [composerTab, setComposerTab] = useState('post');
@@ -235,16 +268,27 @@ const Profile = () => {
 
   useEffect(() => { fetchProfile(); }, [userId]);
 
+  const getFacultyColor = (dept) => {
+    const cbeDepts = ['Applied Information Systems', 'Business Management', 'Economics and Econometrics', 'Finance & Investment Management', 'Information & Knowledge Management', 'Public Management & Governance', 'Hospitality', 'Commercial Accountancy', 'Industrial Psychology', 'Marketing', 'Transport & Supply Chain Management', 'Tourism', 'Accountancy'];
+    if (cbeDepts.some(d => dept && dept.includes(d))) return '#2563eb';
+    if (dept && dept.includes('Law')) return '#dc2626';
+    if (dept && dept.includes('Science')) return '#16a34a';
+    if (dept && dept.includes('Humanities')) return '#9333ea';
+    if (dept && dept.includes('Health')) return '#ea580c';
+    if (dept && dept.includes('Engineering')) return '#ca8a04';
+    return '#666';
+  };
+
+  const getFacultyGradient = (dept) => `linear-gradient(135deg, ${getFacultyColor(dept)}, ${getFacultyColor(dept)}88)`;
+
   const formatTime = (dateString) => {
-    const now = new Date();
-    const date = new Date(dateString);
-    const diffMs = now - date;
-    const diffMins = Math.floor(diffMs / 60000);
-    const diffHours = Math.floor(diffMs / 3600000);
-    const diffDays = Math.floor(diffMs / 86400000);
+    const now = new Date(); const date = new Date(dateString);
+    const diffMins = Math.floor((now - date) / 60000);
     if (diffMins < 1) return 'Just now';
     if (diffMins < 60) return `${diffMins}m`;
+    const diffHours = Math.floor(diffMins / 60);
     if (diffHours < 24) return `${diffHours}h`;
+    const diffDays = Math.floor(diffHours / 24);
     if (diffDays === 1) return 'Yesterday';
     if (diffDays < 7) return `${diffDays}d`;
     return date.toLocaleDateString('en-ZA', { day: 'numeric', month: 'short' });
@@ -275,123 +319,138 @@ const Profile = () => {
       if (data.profile_position_y) setAvatarPosY(parseFloat(data.profile_position_y));
       if (data.profile_zoom) setAvatarZoom(parseFloat(data.profile_zoom));
       fetchUserPosts(data.id);
+      fetchUserStories(data.id);
+      fetchHighlights(data.id);
+      fetchBadges(data.id);
     } catch (err) { setError('Could not load profile'); } finally { setLoading(false); }
   };
 
   const fetchUserPosts = async (uid) => {
-    try {
-      const { data } = await axios.get(`${API_URL}/api/posts?user_id=${uid}`);
-      setUserPosts(data || []);
-    } catch (err) { /* silent */ }
+    try { const { data } = await axios.get(`${API_URL}/api/posts?user_id=${uid}`); setUserPosts(data || []); } catch (err) {}
+  };
+
+  const fetchUserStories = async (uid) => {
+    try { const { data } = await axios.get(`${API_URL}/api/stories?user_id=${uid}`); setUserStories(data || []); } catch (err) {}
+  };
+
+  const fetchHighlights = async (uid) => {
+    try { const { data } = await axios.get(`${API_URL}/api/highlights/user/${uid}`); setHighlights(data || []); } catch (err) {}
+  };
+
+  const fetchBadges = async (uid) => {
+    try { const { data } = await axios.get(`${API_URL}/api/badges/user/${uid}`); setBadges(data || []); } catch (err) {}
   };
 
   const handleDeletePost = async (postId) => {
     if (!window.confirm('Delete this post?')) return;
+    try { await axios.delete(`${API_URL}/api/posts/${postId}`); setUserPosts(prev => prev.filter(p => p.id !== postId)); } catch (err) { setError('Failed to delete post'); }
+  };
+
+  const handleDeleteStory = async (storyId) => {
+    if (!window.confirm('Delete this story?')) return;
+    try { await axios.delete(`${API_URL}/api/stories/${storyId}`); setUserStories(prev => prev.filter(s => s.id !== storyId)); } catch (err) { setError('Failed to delete story'); }
+  };
+
+  const handleDeleteHighlight = async (highlightId) => {
+    if (!window.confirm('Delete this highlight?')) return;
+    try { await axios.delete(`${API_URL}/api/highlights/${highlightId}`); setHighlights(prev => prev.filter(h => h.id !== highlightId)); } catch (err) { setError('Failed to delete highlight'); }
+  };
+
+  const handleDeleteBadge = async (badgeId) => {
+    if (!window.confirm('Delete this badge?')) return;
+    try { await axios.delete(`${API_URL}/api/badges/${badgeId}`); setBadges(prev => prev.filter(b => b.id !== badgeId)); } catch (err) { setError('Failed to delete badge'); }
+  };
+
+  const handleHighlightFileSelect = (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+    setHighlightFile(file);
+    const reader = new FileReader();
+    reader.onload = () => setHighlightPreview(reader.result);
+    reader.readAsDataURL(file);
+    setShowHighlightCreate(true);
+  };
+
+  const handleCreateHighlight = async () => {
+    if (!highlightFile || !highlightTitle.trim()) return;
+    setCreatingHighlight(true);
+    const fd = new FormData(); fd.append('file', highlightFile);
     try {
-      await axios.delete(`${API_URL}/api/posts/${postId}`);
-      setUserPosts(prev => prev.filter(p => p.id !== postId));
-    } catch (err) { setError('Failed to delete post'); }
+      const uploadRes = await axios.post(`${API_URL}/api/upload`, fd);
+      const isVideo = highlightFile.type.startsWith('video');
+      const { data } = await axios.post(`${API_URL}/api/highlights`, { user_id: currentUser.id, title: highlightTitle.trim() });
+      await axios.post(`${API_URL}/api/highlights/${data.id}/items`, { media_url: uploadRes.data.url, media_type: isVideo ? 'video' : 'image' });
+      setHighlightFile(null); setHighlightPreview(null); setHighlightTitle(''); setShowHighlightCreate(false);
+      fetchHighlights(currentUser.id);
+    } catch (err) { setError('Failed to create highlight'); } finally { setCreatingHighlight(false); }
+  };
+
+  const handleCreateBadge = async () => {
+    if (!badgeTitle.trim()) return;
+    setCreatingBadge(true);
+    try {
+      const { data } = await axios.post(`${API_URL}/api/badges`, {
+        user_id: currentUser.id,
+        title: badgeTitle.trim(),
+        description: badgeDescription.trim()
+      });
+      setBadges(prev => [data, ...prev]);
+      setBadgeTitle(''); setBadgeDescription(''); setShowBadgeModal(false);
+    } catch (err) { setError('Failed to create badge'); } finally { setCreatingBadge(false); }
   };
 
   const handleLikePost = async (postId) => {
-    try {
-      const { data } = await axios.post(`${API_URL}/api/posts/${postId}/like`, { user_id: currentUser.id });
-      setUserPosts(prev => prev.map(p => p.id === postId ? { ...p, likes_count: data.liked ? p.likes_count + 1 : p.likes_count - 1 } : p));
-    } catch (err) { /* silent */ }
+    try { const { data } = await axios.post(`${API_URL}/api/posts/${postId}/like`, { user_id: currentUser.id }); setUserPosts(prev => prev.map(p => p.id === postId ? { ...p, likes_count: data.liked ? p.likes_count + 1 : p.likes_count - 1 } : p)); } catch (err) {}
   };
 
   const handleSave = async () => {
     setSaving(true); setError('');
     try {
       const skillsArray = form.skills.split(',').map(s => s.trim()).filter(s => s.length > 0);
-      const saveData = {
-        ...form, skills: skillsArray,
-        cover_position_x: `${Math.round(coverPosX)}`, cover_position_y: `${Math.round(coverPosY)}`, cover_zoom: `${coverZoom}`,
-        profile_position_x: `${Math.round(avatarPosX)}`, profile_position_y: `${Math.round(avatarPosY)}`, profile_zoom: `${avatarZoom}`,
-        dark_mode: darkMode ? 'true' : 'false'
-      };
+      const saveData = { ...form, skills: skillsArray, cover_position_x: `${Math.round(coverPosX)}`, cover_position_y: `${Math.round(coverPosY)}`, cover_zoom: `${coverZoom}`, profile_position_x: `${Math.round(avatarPosX)}`, profile_position_y: `${Math.round(avatarPosY)}`, profile_zoom: `${avatarZoom}`, dark_mode: darkMode ? 'true' : 'false' };
       const { data } = await axios.put(`${API_URL}/api/users/${currentUser.id}`, saveData, { headers: { Authorization: `Bearer ${token}` } });
-      setUser(data);
-      localStorage.setItem('ujconnect_user', JSON.stringify(data));
+      setUser(data); localStorage.setItem('ujconnect_user', JSON.stringify(data));
       setEditing(false); setShowAvatarEditor(false);
     } catch (err) { setError('Failed to save.'); } finally { setSaving(false); }
   };
 
   const handleChange = (e) => { setForm({ ...form, [e.target.name]: e.target.value }); };
-
   const handleFileUpload = async (file, field) => {
     if (!file) return;
     const fd = new FormData(); fd.append('file', file);
-    try {
-      const { data } = await axios.post(`${API_URL}/api/upload`, fd);
-      setForm(prev => ({ ...prev, [field]: data.url }));
-      if (field === 'profile_pic') { setAvatarPosX(50); setAvatarPosY(50); setAvatarZoom(1); setShowAvatarEditor(true); }
-      if (field === 'cover_photo') { setCoverPosX(50); setCoverPosY(50); setCoverZoom(1); }
-    } catch (err) { setError('Failed to upload image'); }
+    try { const { data } = await axios.post(`${API_URL}/api/upload`, fd); setForm(prev => ({ ...prev, [field]: data.url })); if (field === 'profile_pic') { setAvatarPosX(50); setAvatarPosY(50); setAvatarZoom(1); setShowAvatarEditor(true); } if (field === 'cover_photo') { setCoverPosX(50); setCoverPosY(50); setCoverZoom(1); } } catch (err) { setError('Failed to upload image'); }
   };
-
   const handlePostMediaUpload = async (file) => {
     if (!file) return;
     const fd = new FormData(); fd.append('file', file);
-    try {
-      const { data } = await axios.post(`${API_URL}/api/upload`, fd);
-      setPostMedia(prev => [...prev, data.url]);
-    } catch (err) { setError('Failed to upload media'); }
+    try { const { data } = await axios.post(`${API_URL}/api/upload`, fd); setPostMedia(prev => [...prev, data.url]); } catch (err) { setError('Failed to upload media'); }
   };
-
   const handleCreatePost = async () => {
     if (!postContent.trim() && postMedia.length === 0) return;
     setPosting(true);
-    try {
-      const { data } = await axios.post(`${API_URL}/api/posts`, {
-        user_id: currentUser.id,
-        content: postContent,
-        media_url: postMedia[0] || null,
-        media_type: postMedia.length > 0 ? 'image' : null,
-        post_type: postTag || 'post'
-      });
-      setUserPosts(prev => [data, ...prev]);
-      setPostContent(''); setPostMedia([]); setPostTag(null); setShowComposer(false);
-    } catch (err) { setError('Failed to create post'); } finally { setPosting(false); }
+    try { const { data } = await axios.post(`${API_URL}/api/posts`, { user_id: currentUser.id, content: postContent, media_url: postMedia[0] || null, media_type: postMedia.length > 0 ? 'image' : null, post_type: postTag || 'post' }); setUserPosts(prev => [data, ...prev]); setPostContent(''); setPostMedia([]); setPostTag(null); setShowComposer(false); } catch (err) { setError('Failed to create post'); } finally { setPosting(false); }
   };
 
   const handleCoverDragStart = (e) => {
     e.preventDefault(); setDraggingCover(true);
-    const startX = e.clientX || e.touches?.[0]?.clientX, startY = e.clientY || e.touches?.[0]?.clientY;
-    const startPX = coverPosX, startPY = coverPosY;
+    const startX = e.clientX || e.touches?.[0]?.clientX, startY = e.clientY || e.touches?.[0]?.clientY, startPX = coverPosX, startPY = coverPosY;
     const rect = coverRef.current?.getBoundingClientRect();
-    const onMove = (ev) => {
-      const cx = ev.clientX || ev.touches?.[0]?.clientX, cy = ev.clientY || ev.touches?.[0]?.clientY;
-      setCoverPosX(Math.max(0, Math.min(100, startPX + ((cx - startX) / rect.width) * 100)));
-      setCoverPosY(Math.max(0, Math.min(100, startPY + ((cy - startY) / rect.height) * 100)));
-    };
+    const onMove = (ev) => { const cx = ev.clientX || ev.touches?.[0]?.clientX, cy = ev.clientY || ev.touches?.[0]?.clientY; setCoverPosX(Math.max(0, Math.min(100, startPX + ((cx - startX) / rect.width) * 100))); setCoverPosY(Math.max(0, Math.min(100, startPY + ((cy - startY) / rect.height) * 100))); };
     const onEnd = () => { setDraggingCover(false); document.removeEventListener('mousemove', onMove); document.removeEventListener('mouseup', onEnd); document.removeEventListener('touchmove', onMove); document.removeEventListener('touchend', onEnd); };
     document.addEventListener('mousemove', onMove); document.addEventListener('mouseup', onEnd); document.addEventListener('touchmove', onMove); document.addEventListener('touchend', onEnd);
   };
-
   const handleAvatarDragStart = (e) => {
     e.preventDefault(); setDraggingAvatar(true);
-    const startX = e.clientX || e.touches?.[0]?.clientX, startY = e.clientY || e.touches?.[0]?.clientY;
-    const startPX = avatarPosX, startPY = avatarPosY;
+    const startX = e.clientX || e.touches?.[0]?.clientX, startY = e.clientY || e.touches?.[0]?.clientY, startPX = avatarPosX, startPY = avatarPosY;
     const rect = avatarRef.current?.getBoundingClientRect();
-    const onMove = (ev) => {
-      const cx = ev.clientX || ev.touches?.[0]?.clientX, cy = ev.clientY || ev.touches?.[0]?.clientY;
-      setAvatarPosX(Math.max(0, Math.min(100, startPX + ((cx - startX) / rect.width) * 100)));
-      setAvatarPosY(Math.max(0, Math.min(100, startPY + ((cy - startY) / rect.height) * 100)));
-    };
+    const onMove = (ev) => { const cx = ev.clientX || ev.touches?.[0]?.clientX, cy = ev.clientY || ev.touches?.[0]?.clientY; setAvatarPosX(Math.max(0, Math.min(100, startPX + ((cx - startX) / rect.width) * 100))); setAvatarPosY(Math.max(0, Math.min(100, startPY + ((cy - startY) / rect.height) * 100))); };
     const onEnd = () => { setDraggingAvatar(false); document.removeEventListener('mousemove', onMove); document.removeEventListener('mouseup', onEnd); document.removeEventListener('touchmove', onMove); document.removeEventListener('touchend', onEnd); };
     document.addEventListener('mousemove', onMove); document.addEventListener('mouseup', onEnd); document.addEventListener('touchmove', onMove); document.addEventListener('touchend', onEnd);
   };
 
   const renderContent = (text) => {
     if (!text) return null;
-    const parts = text.split(/(#\w+)/g);
-    return parts.map((part, i) => {
-      if (part.startsWith('#')) {
-        return <span key={i} style={{ color: '#4da6ff', fontWeight: 500 }}>{part}</span>;
-      }
-      return part;
-    });
+    return text.split(/(#\w+)/g).map((part, i) => part.startsWith('#') ? <span key={i} style={{ color: '#4da6ff', fontWeight: 500 }}>{part}</span> : part);
   };
 
   const handleBack = () => navigate(-1);
@@ -425,10 +484,12 @@ const Profile = () => {
   const currentCover = form.cover_photo || user?.cover_photo;
   const currentAvatar = form.profile_pic || user?.profile_pic;
   const hasSocialLinks = socialLinks.some(s => user?.[s.key]);
+  const hasStories = userStories.length > 0;
 
   return (
     <div style={{ minHeight: '100vh', background: theme.bg, fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif', maxWidth: '600px', margin: '0 auto', position: 'relative', paddingBottom: '80px' }}>
-      {/* Cover */}
+
+      {/* COVER PHOTO */}
       <div ref={coverRef} style={{ width: '100%', height: '160px', background: currentCover ? `url(${currentCover})` : 'linear-gradient(135deg, #e8e8e8, #d5d5d5)', backgroundPosition: currentCover ? `${coverPosX}% ${coverPosY}%` : 'center', backgroundSize: currentCover ? `${coverZoom * 100}%` : 'cover', backgroundRepeat: 'no-repeat', position: 'relative', overflow: 'hidden', cursor: !editing && currentCover ? 'pointer' : editing && currentCover ? (draggingCover ? 'grabbing' : 'grab') : 'default' }}
         onMouseDown={editing && currentCover ? handleCoverDragStart : undefined} onTouchStart={editing && currentCover ? handleCoverDragStart : undefined}
         onClick={() => { if (!editing && currentCover) setCoverPreview(true); }}>
@@ -444,8 +505,8 @@ const Profile = () => {
         <div style={{ position: 'absolute', top: 0, left: 0, right: 0, padding: '12px 20px', display: 'flex', alignItems: 'center', gap: '16px', zIndex: 10 }}>
           <button onClick={handleBack} style={{ background: 'rgba(0,0,0,0.3)', border: 'none', cursor: 'pointer', color: 'white', padding: '8px', borderRadius: '50%', display: 'flex' }}><ArrowLeftIcon /></button>
           <h2 style={{ fontSize: '18px', fontWeight: 700, margin: 0, color: 'white', textShadow: '0 1px 3px rgba(0,0,0,0.3)', display: 'flex', alignItems: 'center', gap: '6px' }}>{displayName}{user?.year && <ShieldIcon year={user.year} size={18} color={getShieldColor(user.year)} />}</h2>
-          {isOwner && !editing && (<button onClick={handleLogout} style={{ marginLeft: 'auto', background: 'rgba(0,0,0,0.3)', border: 'none', padding: '6px 14px', borderRadius: '20px', fontSize: '13px', fontWeight: 600, color: 'white', cursor: 'pointer', fontFamily: 'inherit' }}>Logout</button>)}
-          {!isOwner && (<button onClick={handleMessage} style={{ marginLeft: 'auto', background: '#FF6B00', color: 'white', border: 'none', padding: '8px 18px', borderRadius: '20px', fontSize: '13px', fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' }}>Message</button>)}
+          {isOwner && !editing && <button onClick={handleLogout} style={{ marginLeft: 'auto', background: 'rgba(0,0,0,0.3)', border: 'none', padding: '6px 14px', borderRadius: '20px', fontSize: '13px', fontWeight: 600, color: 'white', cursor: 'pointer', fontFamily: 'inherit' }}>Logout</button>}
+          {!isOwner && <button onClick={handleMessage} style={{ marginLeft: 'auto', background: '#FF6B00', color: 'white', border: 'none', padding: '8px 18px', borderRadius: '20px', fontSize: '13px', fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' }}>Message</button>}
         </div>
       </div>
 
@@ -454,14 +515,6 @@ const Profile = () => {
         <div onClick={() => setCoverPreview(false)} style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.95)', zIndex: 4000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '20px' }}>
           <button onClick={() => setCoverPreview(false)} style={{ position: 'absolute', top: '20px', right: '20px', background: 'none', border: 'none', color: 'white', cursor: 'pointer', zIndex: 5 }}><CloseIcon /></button>
           <img src={currentCover} alt="Cover" style={{ maxWidth: '100%', maxHeight: '80vh', borderRadius: '8px', objectFit: 'contain' }} />
-        </div>
-      )}
-
-      {/* Avatar Preview */}
-      {avatarPreview && currentAvatar && (
-        <div onClick={() => setAvatarPreview(false)} style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.95)', zIndex: 4000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '20px' }}>
-          <button onClick={() => setAvatarPreview(false)} style={{ position: 'absolute', top: '20px', right: '20px', background: 'none', border: 'none', color: 'white', cursor: 'pointer', zIndex: 5 }}><CloseIcon /></button>
-          <img src={currentAvatar} alt="Avatar" style={{ width: '300px', height: '300px', borderRadius: '50%', objectFit: 'cover', border: '4px solid rgba(255,255,255,0.2)' }} />
         </div>
       )}
 
@@ -486,26 +539,124 @@ const Profile = () => {
         </div>
       )}
 
+      {/* Avatar Tap Menu */}
+      {showAvatarMenu && (
+        <div onClick={() => setShowAvatarMenu(false)} style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.5)', zIndex: 2000, display: 'flex', alignItems: 'flex-end', justifyContent: 'center', padding: '20px' }}>
+          <div onClick={(e) => e.stopPropagation()} style={{ background: theme.bg, borderRadius: '20px', padding: '24px', width: '100%', maxWidth: '400px', marginBottom: '20px' }}>
+            <button onClick={() => { setShowAvatarMenu(false); setAvatarPreview(true); }} style={{ width: '100%', padding: '14px', background: theme.cardBg, border: 'none', borderRadius: '12px', fontSize: '15px', fontWeight: 600, color: theme.text, cursor: 'pointer', fontFamily: 'inherit', marginBottom: '10px', textAlign: 'left' }}>View Profile Picture</button>
+            {hasStories && (
+              <button onClick={() => { setShowAvatarMenu(false); setShowStoryViewer(true); setStoryViewerIndex(0); }} style={{ width: '100%', padding: '14px', background: theme.cardBg, border: 'none', borderRadius: '12px', fontSize: '15px', fontWeight: 600, color: theme.text, cursor: 'pointer', fontFamily: 'inherit', marginBottom: '10px', textAlign: 'left' }}>View Story</button>
+            )}
+            <button onClick={() => setShowAvatarMenu(false)} style={{ width: '100%', padding: '12px', background: 'none', border: 'none', color: theme.textSecondary, fontSize: '14px', cursor: 'pointer', fontFamily: 'inherit', marginTop: '8px' }}>Cancel</button>
+          </div>
+        </div>
+      )}
+
+      {/* Story Viewer Modal */}
+      {showStoryViewer && hasStories && (
+        <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: '#000', zIndex: 3000, display: 'flex', flexDirection: 'column' }}>
+          <button onClick={() => setShowStoryViewer(false)} style={{ position: 'absolute', top: '16px', right: '16px', background: 'rgba(255,255,255,0.2)', border: 'none', color: 'white', cursor: 'pointer', zIndex: 5, width: '36px', height: '36px', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center' }}><CloseIcon /></button>
+          <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '20px' }}>
+            {userStories[storyViewerIndex]?.media_type === 'video' ? (
+              <video src={userStories[storyViewerIndex].media_url} controls autoPlay style={{ width: '100%', maxHeight: '65vh', objectFit: 'contain', borderRadius: '12px' }} />
+            ) : (
+              <img src={userStories[storyViewerIndex].media_url} alt="Story" style={{ width: '100%', maxHeight: '65vh', objectFit: 'contain', borderRadius: '12px' }} />
+            )}
+          </div>
+          <div style={{ display: 'flex', justifyContent: 'center', gap: '20px', padding: '16px', paddingBottom: 'max(16px, env(safe-area-inset-bottom))' }}>
+            <button onClick={() => setStoryViewerIndex(prev => Math.max(0, prev - 1))} disabled={storyViewerIndex === 0} style={{ background: 'rgba(255,255,255,0.2)', border: 'none', color: 'white', padding: '10px 20px', borderRadius: '20px', cursor: 'pointer', fontFamily: 'inherit', opacity: storyViewerIndex === 0 ? 0.3 : 1 }}>Previous</button>
+            <button onClick={() => setStoryViewerIndex(prev => Math.min(userStories.length - 1, prev + 1))} disabled={storyViewerIndex >= userStories.length - 1} style={{ background: 'rgba(255,255,255,0.2)', border: 'none', color: 'white', padding: '10px 20px', borderRadius: '20px', cursor: 'pointer', fontFamily: 'inherit', opacity: storyViewerIndex >= userStories.length - 1 ? 0.3 : 1 }}>Next</button>
+          </div>
+        </div>
+      )}
+
+      {/* Highlight Viewer */}
+      {viewingHighlight && viewingHighlight.items && viewingHighlight.items.length > 0 && (
+        <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: '#000', zIndex: 3000, display: 'flex', flexDirection: 'column' }}>
+          <button onClick={() => setViewingHighlight(null)} style={{ position: 'absolute', top: '16px', right: '16px', background: 'rgba(255,255,255,0.2)', border: 'none', color: 'white', cursor: 'pointer', zIndex: 5, width: '36px', height: '36px', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center' }}><CloseIcon /></button>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '20px', paddingTop: '60px' }}>
+            <span style={{ color: 'white', fontWeight: 600, fontSize: '16px' }}>{viewingHighlight.title}</span>
+            <span style={{ color: '#aaa', fontSize: '13px', marginLeft: '10px' }}>{highlightStoryIndex + 1} / {viewingHighlight.items.length}</span>
+          </div>
+          <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '20px' }}>
+            {viewingHighlight.items[highlightStoryIndex]?.media_type === 'video' ? (
+              <video src={viewingHighlight.items[highlightStoryIndex].media_url} controls autoPlay style={{ width: '100%', maxHeight: '60vh', objectFit: 'contain', borderRadius: '12px' }} />
+            ) : (
+              <img src={viewingHighlight.items[highlightStoryIndex].media_url} alt="Highlight" style={{ width: '100%', maxHeight: '60vh', objectFit: 'contain', borderRadius: '12px' }} />
+            )}
+          </div>
+          <div style={{ display: 'flex', justifyContent: 'center', gap: '20px', padding: '16px', paddingBottom: 'max(16px, env(safe-area-inset-bottom))' }}>
+            <button onClick={() => setHighlightStoryIndex(prev => Math.max(0, prev - 1))} disabled={highlightStoryIndex === 0} style={{ background: 'rgba(255,255,255,0.2)', border: 'none', color: 'white', padding: '10px 20px', borderRadius: '20px', cursor: 'pointer', fontFamily: 'inherit', opacity: highlightStoryIndex === 0 ? 0.3 : 1 }}>Previous</button>
+            <button onClick={() => setHighlightStoryIndex(prev => Math.min((viewingHighlight.items?.length || 1) - 1, prev + 1))} disabled={highlightStoryIndex >= (viewingHighlight.items?.length || 1) - 1} style={{ background: 'rgba(255,255,255,0.2)', border: 'none', color: 'white', padding: '10px 20px', borderRadius: '20px', cursor: 'pointer', fontFamily: 'inherit', opacity: highlightStoryIndex >= (viewingHighlight.items?.length || 1) - 1 ? 0.3 : 1 }}>Next</button>
+          </div>
+        </div>
+      )}
+
+      {/* Highlight Create Modal */}
+      {showHighlightCreate && highlightPreview && (
+        <div onClick={() => { setShowHighlightCreate(false); setHighlightFile(null); setHighlightPreview(null); setHighlightTitle(''); }} style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.8)', zIndex: 2000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '20px' }}>
+          <div onClick={(e) => e.stopPropagation()} style={{ background: theme.bg, borderRadius: '20px', padding: '24px', width: '100%', maxWidth: '400px' }}>
+            <h3 style={{ fontSize: '18px', fontWeight: 700, color: theme.text, marginBottom: '16px', textAlign: 'center' }}>New Highlight</h3>
+            <div style={{ width: '100%', height: '200px', borderRadius: '12px', overflow: 'hidden', marginBottom: '16px', background: '#000', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+              {highlightFile?.type?.startsWith('video') ? (
+                <video src={highlightPreview} controls style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+              ) : (
+                <img src={highlightPreview} alt="Preview" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+              )}
+            </div>
+            <input type="text" placeholder="Highlight name" value={highlightTitle} onChange={(e) => setHighlightTitle(e.target.value)} style={{ width: '100%', padding: '12px 14px', border: `1.5px solid ${theme.inputBorder}`, borderRadius: '10px', fontSize: '14px', fontFamily: 'inherit', boxSizing: 'border-box', background: theme.inputBg, color: theme.text, marginBottom: '16px' }} />
+            <div style={{ display: 'flex', gap: '10px' }}>
+              <button onClick={() => { setShowHighlightCreate(false); setHighlightFile(null); setHighlightPreview(null); setHighlightTitle(''); }} style={{ flex: 1, padding: '12px', background: theme.cardBg, border: 'none', borderRadius: '12px', fontSize: '14px', fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit', color: theme.textSecondary }}>Cancel</button>
+              <button onClick={handleCreateHighlight} disabled={creatingHighlight || !highlightTitle.trim()} style={{ flex: 1, padding: '12px', background: '#FF6B00', color: 'white', border: 'none', borderRadius: '12px', fontSize: '14px', fontWeight: 600, cursor: creatingHighlight ? 'not-allowed' : 'pointer', fontFamily: 'inherit', opacity: creatingHighlight || !highlightTitle.trim() ? 0.5 : 1 }}>{creatingHighlight ? 'Creating...' : 'Add'}</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Badge Detail Modal */}
+      {viewingBadge && (
+        <div onClick={() => setViewingBadge(null)} style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.8)', zIndex: 2000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '20px' }}>
+          <div onClick={(e) => e.stopPropagation()} style={{ background: theme.bg, borderRadius: '20px', padding: '32px', width: '100%', maxWidth: '380px', textAlign: 'center' }}>
+            <div style={{ width: '80px', height: '80px', borderRadius: '50%', background: 'linear-gradient(135deg, #D4AF37, #F0C75E)', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', marginBottom: '16px' }}>
+              <BadgeIcon />
+            </div>
+            <h3 style={{ fontSize: '20px', fontWeight: 700, color: theme.text, marginBottom: '8px' }}>{viewingBadge.title}</h3>
+            {viewingBadge.description && (
+              <p style={{ fontSize: '14px', color: theme.textSecondary, lineHeight: 1.5, marginBottom: '20px' }}>{viewingBadge.description}</p>
+            )}
+            <button onClick={() => setViewingBadge(null)} style={{ padding: '12px 30px', background: theme.cardBg, border: 'none', borderRadius: '12px', fontSize: '14px', fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit', color: theme.text }}>Close</button>
+          </div>
+        </div>
+      )}
+
+      {/* Badge Create Modal */}
+      {showBadgeModal && (
+        <div onClick={() => setShowBadgeModal(false)} style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.5)', zIndex: 2000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '20px' }}>
+          <div onClick={(e) => e.stopPropagation()} style={{ background: theme.bg, borderRadius: '20px', padding: '24px', width: '100%', maxWidth: '400px' }}>
+            <h3 style={{ fontSize: '18px', fontWeight: 700, color: theme.text, marginBottom: '16px', textAlign: 'center' }}>Add Achievement Badge</h3>
+            <input type="text" placeholder="e.g. Chess Master 2022" value={badgeTitle} onChange={(e) => setBadgeTitle(e.target.value)} style={{ width: '100%', padding: '12px 14px', border: `1.5px solid ${theme.inputBorder}`, borderRadius: '10px', fontSize: '14px', fontFamily: 'inherit', boxSizing: 'border-box', background: theme.inputBg, color: theme.text, marginBottom: '12px' }} />
+            <textarea placeholder="Description (optional)" value={badgeDescription} onChange={(e) => setBadgeDescription(e.target.value)} rows={3} style={{ width: '100%', padding: '12px 14px', border: `1.5px solid ${theme.inputBorder}`, borderRadius: '10px', fontSize: '14px', fontFamily: 'inherit', resize: 'none', boxSizing: 'border-box', background: theme.inputBg, color: theme.text, marginBottom: '16px' }} />
+            <div style={{ display: 'flex', gap: '10px' }}>
+              <button onClick={() => { setShowBadgeModal(false); setBadgeTitle(''); setBadgeDescription(''); }} style={{ flex: 1, padding: '12px', background: theme.cardBg, border: 'none', borderRadius: '12px', fontSize: '14px', fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit', color: theme.textSecondary }}>Cancel</button>
+              <button onClick={handleCreateBadge} disabled={creatingBadge || !badgeTitle.trim()} style={{ flex: 1, padding: '12px', background: '#FF6B00', color: 'white', border: 'none', borderRadius: '12px', fontSize: '14px', fontWeight: 600, cursor: creatingBadge ? 'not-allowed' : 'pointer', fontFamily: 'inherit', opacity: creatingBadge || !badgeTitle.trim() ? 0.5 : 1 }}>{creatingBadge ? 'Adding...' : 'Add Badge'}</button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* COMPOSER MODAL */}
       {showComposer && (
         <div onClick={() => { setShowComposer(false); setPostTag(null); setPostContent(''); setPostMedia([]); }} style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.6)', zIndex: 2000, display: 'flex', alignItems: 'flex-start', justifyContent: 'center', padding: '20px', paddingTop: '60px' }}>
           <div onClick={(e) => e.stopPropagation()} style={{ background: theme.bg, borderRadius: '20px', width: '100%', maxWidth: '500px', overflow: 'hidden' }}>
             <div style={{ display: 'flex', borderBottom: `1px solid ${theme.border}`, position: 'relative' }}>
-              <button onClick={() => setComposerTab('post')} style={{ flex: 1, padding: '14px', background: 'none', border: 'none', color: composerTab === 'post' ? '#FF6B00' : theme.textSecondary, fontWeight: 600, fontSize: '14px', cursor: 'pointer', fontFamily: 'inherit', position: 'relative' }}>
-                Post
-                {composerTab === 'post' && <div style={{ position: 'absolute', bottom: 0, left: '20%', right: '20%', height: '2px', background: '#FF6B00', borderRadius: '1px' }} />}
-              </button>
-              <button onClick={() => setComposerTab('project')} style={{ flex: 1, padding: '14px', background: 'none', border: 'none', color: composerTab === 'project' ? '#FF6B00' : theme.textSecondary, fontWeight: 600, fontSize: '14px', cursor: 'pointer', fontFamily: 'inherit', position: 'relative' }}>
-                Project
-                {composerTab === 'project' && <div style={{ position: 'absolute', bottom: 0, left: '20%', right: '20%', height: '2px', background: '#FF6B00', borderRadius: '1px' }} />}
-              </button>
-              <button onClick={() => setComposerTab('community')} style={{ flex: 1, padding: '14px', background: 'none', border: 'none', color: composerTab === 'community' ? '#FF6B00' : theme.textSecondary, fontWeight: 600, fontSize: '14px', cursor: 'pointer', fontFamily: 'inherit', position: 'relative' }}>
-                Community
-                {composerTab === 'community' && <div style={{ position: 'absolute', bottom: 0, left: '20%', right: '20%', height: '2px', background: '#FF6B00', borderRadius: '1px' }} />}
-              </button>
+              {['post', 'project', 'community'].map(tab => (
+                <button key={tab} onClick={() => setComposerTab(tab)} style={{ flex: 1, padding: '14px', background: 'none', border: 'none', color: composerTab === tab ? '#FF6B00' : theme.textSecondary, fontWeight: 600, fontSize: '14px', cursor: 'pointer', fontFamily: 'inherit', position: 'relative' }}>
+                  {tab.charAt(0).toUpperCase() + tab.slice(1)}
+                  {composerTab === tab && <div style={{ position: 'absolute', bottom: 0, left: '20%', right: '20%', height: '2px', background: '#FF6B00', borderRadius: '1px' }} />}
+                </button>
+              ))}
               <button onClick={() => { setShowComposer(false); setPostTag(null); setPostContent(''); setPostMedia([]); }} style={{ padding: '14px', background: 'none', border: 'none', color: theme.textSecondary, cursor: 'pointer', fontSize: '18px' }}><CloseIcon /></button>
             </div>
-
             {composerTab === 'post' && (
               <div style={{ padding: '16px' }}>
                 <div style={{ display: 'flex', gap: '10px', marginBottom: '16px' }}>
@@ -513,16 +664,7 @@ const Profile = () => {
                   <button onClick={() => setPostTag(postTag === 'awareness' ? null : 'awareness')} style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '8px 14px', borderRadius: '20px', border: postTag === 'awareness' ? '2px solid #f59e0b' : `1.5px solid ${theme.border}`, background: postTag === 'awareness' ? '#fffbeb' : 'transparent', color: postTag === 'awareness' ? '#f59e0b' : theme.textSecondary, fontSize: '12px', fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' }}><AwarenessIcon color={postTag === 'awareness' ? '#f59e0b' : theme.textSecondary} /> Awareness</button>
                 </div>
                 <textarea value={postContent} onChange={(e) => setPostContent(e.target.value)} placeholder="What's happening?" rows={5} style={{ width: '100%', padding: '12px 0', border: 'none', outline: 'none', fontSize: '16px', fontFamily: 'inherit', resize: 'none', background: 'transparent', color: theme.text, boxSizing: 'border-box' }} />
-                {postMedia.length > 0 && (
-                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px', marginBottom: '12px' }}>
-                    {postMedia.map((url, i) => (
-                      <div key={i} style={{ position: 'relative' }}>
-                        <img src={url} alt="Media" style={{ width: '80px', height: '80px', borderRadius: '10px', objectFit: 'cover' }} />
-                        <button onClick={() => setPostMedia(prev => prev.filter((_, j) => j !== i))} style={{ position: 'absolute', top: '-6px', right: '-6px', width: '20px', height: '20px', borderRadius: '50%', background: '#dc2626', color: 'white', border: 'none', cursor: 'pointer', fontSize: '11px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>x</button>
-                      </div>
-                    ))}
-                  </div>
-                )}
+                {postMedia.length > 0 && (<div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px', marginBottom: '12px' }}>{postMedia.map((url, i) => (<div key={i} style={{ position: 'relative' }}><img src={url} alt="Media" style={{ width: '80px', height: '80px', borderRadius: '10px', objectFit: 'cover' }} /><button onClick={() => setPostMedia(prev => prev.filter((_, j) => j !== i))} style={{ position: 'absolute', top: '-6px', right: '-6px', width: '20px', height: '20px', borderRadius: '50%', background: '#dc2626', color: 'white', border: 'none', cursor: 'pointer', fontSize: '11px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>x</button></div>))}</div>)}
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderTop: `1px solid ${theme.border}`, paddingTop: '12px' }}>
                   <div style={{ display: 'flex', gap: '8px' }}>
                     <label style={{ cursor: 'pointer', color: theme.textSecondary, padding: '6px', display: 'flex' }}><ImageIcon /><input type="file" accept="image/*" onChange={(e) => handlePostMediaUpload(e.target.files[0])} style={{ display: 'none' }} /></label>
@@ -532,23 +674,17 @@ const Profile = () => {
                 </div>
               </div>
             )}
-
             {composerTab === 'project' && (
               <div style={{ padding: '24px', textAlign: 'center' }}>
                 <h3 style={{ fontSize: '18px', fontWeight: 700, color: theme.text, marginBottom: '16px' }}>Start a Project</h3>
-                <button onClick={() => { setShowComposer(false); navigate('/projects'); }} style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', padding: '14px 28px', background: '#FF6B00', color: 'white', border: 'none', borderRadius: '24px', fontSize: '15px', fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit', marginBottom: '16px' }}>
-                  <SmallPlusIcon /> Start a Project
-                </button>
+                <button onClick={() => { setShowComposer(false); navigate('/projects'); }} style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', padding: '14px 28px', background: '#FF6B00', color: 'white', border: 'none', borderRadius: '24px', fontSize: '15px', fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit', marginBottom: '16px' }}><SmallPlusIcon /> Start a Project</button>
                 <p style={{ color: theme.textSecondary, fontSize: '13px' }}>Create a project, add members, share links</p>
               </div>
             )}
-
             {composerTab === 'community' && (
               <div style={{ padding: '24px', textAlign: 'center' }}>
                 <h3 style={{ fontSize: '18px', fontWeight: 700, color: theme.text, marginBottom: '16px' }}>Start a Community</h3>
-                <button onClick={() => { setShowComposer(false); navigate('/communities'); }} style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', padding: '14px 28px', background: '#FF6B00', color: 'white', border: 'none', borderRadius: '24px', fontSize: '15px', fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit', marginBottom: '16px' }}>
-                  <SmallPlusIcon /> Start a Community
-                </button>
+                <button onClick={() => { setShowComposer(false); navigate('/communities'); }} style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', padding: '14px 28px', background: '#FF6B00', color: 'white', border: 'none', borderRadius: '24px', fontSize: '15px', fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit', marginBottom: '16px' }}><SmallPlusIcon /> Start a Community</button>
                 <p style={{ color: theme.textSecondary, fontSize: '13px' }}>Join or create communities around shared interests</p>
               </div>
             )}
@@ -556,23 +692,34 @@ const Profile = () => {
         </div>
       )}
 
-      {/* Profile Content */}
+      {/* PROFILE CONTENT */}
       <div style={{ padding: '0 20px', position: 'relative' }}>
-        <div style={{ width: '96px', height: '96px', borderRadius: '50%', background: currentAvatar ? `url(${currentAvatar})` : 'linear-gradient(135deg, #FF6B00, #FF8C42)', backgroundPosition: currentAvatar ? `${avatarPosX}% ${avatarPosY}%` : 'center', backgroundSize: currentAvatar ? `${avatarZoom * 100}%` : 'cover', backgroundRepeat: 'no-repeat', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'white', fontWeight: 700, fontSize: '38px', border: `4px solid ${theme.bg}`, marginTop: '-48px', position: 'relative', zIndex: 5, overflow: 'hidden', cursor: !editing && currentAvatar ? 'pointer' : 'default' }}
-          onClick={() => { if (!editing && currentAvatar) setAvatarPreview(true); }}>
-          {!currentAvatar && displayName.charAt(0)}
-          {editing && !currentAvatar && (<><input type="file" accept="image/*" onChange={(e) => handleFileUpload(e.target.files[0], 'profile_pic')} style={{ display: 'none' }} id="avatar-upload" /><label htmlFor="avatar-upload" style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, borderRadius: '50%', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(0,0,0,0.2)', color: 'rgba(255,255,255,0.8)' }}><FaintPlusIcon size={36} /></label></>)}
-          {editing && currentAvatar && (<><input type="file" accept="image/*" onChange={(e) => handleFileUpload(e.target.files[0], 'profile_pic')} style={{ display: 'none' }} id="avatar-replace" /><label htmlFor="avatar-replace" style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, borderRadius: '50%', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(0,0,0,0.15)', color: 'rgba(255,255,255,0.6)' }}><FaintPlusIcon size={28} /></label><button onClick={() => setShowAvatarEditor(true)} style={{ position: 'absolute', bottom: '0', left: 0, right: 0, background: 'rgba(0,0,0,0.5)', color: 'white', border: 'none', padding: '4px', fontSize: '10px', cursor: 'pointer', fontFamily: 'inherit', textAlign: 'center' }}>Edit</button></>)}
+        {/* Avatar with story ring */}
+        <div style={{ width: '96px', height: '96px', borderRadius: '50%', padding: hasStories ? '3px' : '0', background: hasStories ? getFacultyGradient(user?.department) : 'transparent', display: 'flex', alignItems: 'center', justifyContent: 'center', marginTop: '-48px', position: 'relative', zIndex: 5 }}>
+          <div onClick={() => { if (!editing) setShowAvatarMenu(true); }} style={{ width: hasStories ? '90px' : '96px', height: hasStories ? '90px' : '96px', borderRadius: '50%', overflow: 'hidden', cursor: !editing ? 'pointer' : 'default', background: currentAvatar ? `url(${currentAvatar})` : 'linear-gradient(135deg, #FF6B00, #FF8C42)', backgroundPosition: currentAvatar ? `${avatarPosX}% ${avatarPosY}%` : 'center', backgroundSize: currentAvatar ? `${avatarZoom * 100}%` : 'cover', backgroundRepeat: 'no-repeat', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'white', fontWeight: 700, fontSize: '38px', border: `4px solid ${theme.bg}` }}>
+            {!currentAvatar && displayName.charAt(0)}
+            {editing && !currentAvatar && (<><input type="file" accept="image/*" onChange={(e) => handleFileUpload(e.target.files[0], 'profile_pic')} style={{ display: 'none' }} id="avatar-upload" /><label htmlFor="avatar-upload" style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, borderRadius: '50%', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(0,0,0,0.2)', color: 'rgba(255,255,255,0.8)' }}><FaintPlusIcon size={36} /></label></>)}
+            {editing && currentAvatar && (<><input type="file" accept="image/*" onChange={(e) => handleFileUpload(e.target.files[0], 'profile_pic')} style={{ display: 'none' }} id="avatar-replace" /><label htmlFor="avatar-replace" style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, borderRadius: '50%', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(0,0,0,0.15)', color: 'rgba(255,255,255,0.6)' }}><FaintPlusIcon size={28} /></label><button onClick={() => setShowAvatarEditor(true)} style={{ position: 'absolute', bottom: '0', left: 0, right: 0, background: 'rgba(0,0,0,0.5)', color: 'white', border: 'none', padding: '4px', fontSize: '10px', cursor: 'pointer', fontFamily: 'inherit', textAlign: 'center' }}>Edit</button></>)}
+          </div>
         </div>
 
-        <div style={{ marginTop: '12px', marginBottom: '16px' }}>
+        {/* Edit profile button */}
+        {isOwner && !editing && (
+          <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '-40px', marginBottom: '0px' }}>
+            <button onClick={() => setEditing(true)} style={{ background: 'none', border: `1.5px solid ${theme.border}`, padding: '6px 16px', borderRadius: '20px', fontSize: '13px', fontWeight: 600, color: theme.textSecondary, cursor: 'pointer', fontFamily: 'inherit' }}>Edit profile</button>
+          </div>
+        )}
+
+        {/* Name + Shield */}
+        <div style={{ marginTop: isOwner && !editing ? '8px' : '12px', marginBottom: '16px' }}>
           <h2 style={{ fontSize: '20px', fontWeight: 700, margin: '0 0 2px', display: 'flex', alignItems: 'center', gap: '8px', color: theme.text }}>{displayName}{user?.year && <ShieldIcon year={user.year} size={22} color={getShieldColor(user.year)} />}</h2>
           {user?.preferred_name && user?.full_name && <p style={{ fontSize: '14px', color: theme.textSecondary, margin: '0 0 8px' }}>{user.full_name}</p>}
-          {isOwner && !editing && <button onClick={() => setEditing(true)} style={{ background: 'none', border: `1.5px solid ${theme.border}`, padding: '6px 16px', borderRadius: '20px', fontSize: '13px', fontWeight: 600, color: theme.textSecondary, cursor: 'pointer', fontFamily: 'inherit' }}>Edit profile</button>}
         </div>
 
+        {/* Bio */}
         {user?.bio && !editing && <p style={{ fontSize: '14px', lineHeight: 1.5, color: darkMode ? '#aaa' : '#555', marginBottom: '20px' }}>{user.bio}</p>}
 
+        {/* Social Links */}
         {hasSocialLinks && !editing && (
           <div style={{ display: 'flex', gap: '12px', marginBottom: '16px', flexWrap: 'wrap' }}>
             {socialLinks.map(s => user?.[s.key] && (
@@ -580,6 +727,83 @@ const Profile = () => {
             ))}
           </div>
         )}
+
+        {/* Department + Course tags */}
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px', marginBottom: '20px' }}>
+          {user?.department && <span style={{ background: theme.cardBg, padding: '6px 14px', borderRadius: '20px', fontSize: '14px', color: theme.textSecondary, fontWeight: 500 }}>{user.department}</span>}
+          {user?.course && <span style={{ background: theme.cardBg, padding: '5px 12px', borderRadius: '20px', fontSize: '11px', color: theme.textSecondary, fontWeight: 400 }}>{user.course}</span>}
+        </div>
+
+        {/* Skills */}
+        {user?.skills && user.skills.length > 0 && (
+          <div style={{ marginBottom: '24px' }}>
+            <h3 style={{ fontSize: '14px', fontWeight: 700, color: theme.text, marginBottom: '10px' }}>Skills</h3>
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
+              {user.skills.map((skill, i) => <span key={i} style={{ background: '#FFF7ED', color: '#FF6B00', padding: '6px 14px', borderRadius: '20px', fontSize: '13px', fontWeight: 500 }}>{skill}</span>)}
+            </div>
+          </div>
+        )}
+
+        {/* Achievements Badges */}
+        <div style={{ marginBottom: '20px' }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '10px' }}>
+            <h3 style={{ fontSize: '14px', fontWeight: 700, color: theme.text, margin: 0 }}>Achievements</h3>
+          </div>
+          <div style={{ display: 'flex', gap: '12px', overflowX: 'auto', paddingBottom: '8px', alignItems: 'center' }}>
+            {badges.map(badge => (
+              <div key={badge.id} style={{ position: 'relative', flexShrink: 0, cursor: 'pointer' }} onClick={() => setViewingBadge(badge)}>
+                <div style={{ width: '50px', height: '50px', borderRadius: '50%', background: 'linear-gradient(135deg, #D4AF37, #F0C75E)', display: 'flex', alignItems: 'center', justifyContent: 'center', border: `2px solid ${theme.border}` }}>
+                  <BadgeIcon />
+                </div>
+                <span style={{ fontSize: '10px', color: theme.textSecondary, display: 'block', textAlign: 'center', marginTop: '4px', maxWidth: '50px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{badge.title}</span>
+                {isOwner && (
+                  <button onClick={(e) => { e.stopPropagation(); handleDeleteBadge(badge.id); }} style={{ position: 'absolute', top: '-2px', right: '-2px', background: 'rgba(0,0,0,0.5)', border: 'none', borderRadius: '50%', width: '16px', height: '16px', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', color: 'white', fontSize: '10px' }}><TrashIcon /></button>
+                )}
+              </div>
+            ))}
+            {isOwner && (
+              <div onClick={() => setShowBadgeModal(true)} style={{ flexShrink: 0, cursor: 'pointer' }}>
+                <div style={{ width: '50px', height: '50px', borderRadius: '50%', background: theme.cardBg, border: `1px dashed ${theme.border}`, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                  <span style={{ fontSize: '22px', color: theme.textSecondary, fontWeight: 300 }}>+</span>
+                </div>
+                <span style={{ fontSize: '10px', color: theme.textSecondary, display: 'block', textAlign: 'center', marginTop: '4px' }}>Add</span>
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* Highlights Section */}
+        <div style={{ marginBottom: '20px' }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '10px' }}>
+            <h3 style={{ fontSize: '14px', fontWeight: 700, color: theme.text, margin: 0 }}>Highlights</h3>
+          </div>
+          <div style={{ display: 'flex', gap: '12px', overflowX: 'auto', paddingBottom: '8px' }}>
+            {highlights.map(highlight => (
+              <div key={highlight.id} style={{ position: 'relative', flexShrink: 0, cursor: 'pointer' }} onClick={() => { setHighlightStoryIndex(0); setViewingHighlight(highlight); }}>
+                <div style={{ width: '100px', height: '130px', borderRadius: '12px', overflow: 'hidden', background: highlight.cover_media ? `url(${highlight.cover_media}) center/cover` : theme.cardBg, border: `1px solid ${theme.border}` }}>
+                  {!highlight.cover_media && (
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%' }}>
+                      <span style={{ fontSize: '24px', color: theme.textSecondary }}>+</span>
+                    </div>
+                  )}
+                </div>
+                <span style={{ fontSize: '11px', color: theme.textSecondary, display: 'block', textAlign: 'center', marginTop: '4px', maxWidth: '100px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{highlight.title}</span>
+                {isOwner && (
+                  <button onClick={(e) => { e.stopPropagation(); handleDeleteHighlight(highlight.id); }} style={{ position: 'absolute', top: '4px', right: '4px', background: 'rgba(0,0,0,0.5)', border: 'none', borderRadius: '50%', width: '20px', height: '20px', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', color: 'white' }}><TrashIcon /></button>
+                )}
+              </div>
+            ))}
+            {isOwner && (
+              <div onClick={() => document.getElementById('highlight-file-input').click()} style={{ flexShrink: 0, cursor: 'pointer' }}>
+                <div style={{ width: '100px', height: '130px', borderRadius: '12px', background: theme.cardBg, border: `1px dashed ${theme.border}`, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                  <span style={{ fontSize: '28px', color: theme.textSecondary, fontWeight: 300 }}>+</span>
+                </div>
+                <span style={{ fontSize: '11px', color: theme.textSecondary, display: 'block', textAlign: 'center', marginTop: '4px' }}>New</span>
+              </div>
+            )}
+            <input id="highlight-file-input" type="file" accept="image/*,video/*" onChange={handleHighlightFileSelect} style={{ display: 'none' }} />
+          </div>
+        </div>
 
         {error && <div style={{ background: '#fff5f5', border: '1px solid #feb2b2', color: '#c53030', padding: '10px 14px', borderRadius: '10px', fontSize: '13px', marginBottom: '16px', textAlign: 'center' }}>{error}</div>}
 
@@ -604,20 +828,7 @@ const Profile = () => {
           </div>
         ) : (
           <>
-            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px', marginBottom: '20px' }}>
-              {user?.department && <span style={{ background: theme.cardBg, padding: '6px 14px', borderRadius: '20px', fontSize: '13px', color: theme.textSecondary, fontWeight: 500 }}>{user.department}</span>}
-              {user?.course && <span style={{ background: theme.cardBg, padding: '6px 14px', borderRadius: '20px', fontSize: '13px', color: theme.textSecondary, fontWeight: 500 }}>{user.course}</span>}
-            </div>
-            {user?.skills && user.skills.length > 0 && (
-              <div style={{ marginBottom: '24px' }}>
-                <h3 style={{ fontSize: '14px', fontWeight: 700, color: theme.text, marginBottom: '10px' }}>Skills</h3>
-                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
-                  {user.skills.map((skill, i) => <span key={i} style={{ background: '#FFF7ED', color: '#FF6B00', padding: '6px 14px', borderRadius: '20px', fontSize: '13px', fontWeight: 500 }}>{skill}</span>)}
-                </div>
-              </div>
-            )}
-
-            {/* Section Tabs with orange underline */}
+            {/* Section Tabs */}
             <div style={{ borderTop: `1px solid ${theme.border}`, paddingTop: '20px', marginTop: '10px' }}>
               <div style={{ display: 'flex', justifyContent: 'space-around', position: 'relative', marginBottom: '20px' }}>
                 <button onClick={() => setProfileSection('posts')} style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '0 0 8px 0', fontFamily: 'inherit', position: 'relative', textAlign: 'center' }}>
@@ -637,7 +848,6 @@ const Profile = () => {
                 </button>
               </div>
 
-              {/* Posts Feed */}
               {profileSection === 'posts' && (
                 <>
                   {userPosts.length > 0 && (
@@ -650,14 +860,10 @@ const Profile = () => {
                               {post.post_type === 'awareness' && <AwarenessIcon color="#f59e0b" />}
                               <span style={{ fontSize: '13px', color: theme.textSecondary }}>{formatTime(post.created_at)}</span>
                             </div>
-                            {isOwner && (
-                              <button onClick={() => handleDeletePost(post.id)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: theme.textSecondary, padding: '4px', opacity: 0.6 }}><TrashIcon /></button>
-                            )}
+                            {isOwner && <button onClick={() => handleDeletePost(post.id)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: theme.textSecondary, padding: '4px', opacity: 0.6 }}><TrashIcon /></button>}
                           </div>
                           <p style={{ margin: '0 0 10px', fontSize: '15px', lineHeight: 1.5, color: theme.text, whiteSpace: 'pre-wrap' }}>{renderContent(post.content)}</p>
-                          {post.media_url && (
-                            <img src={post.media_url} alt="Post media" onClick={() => setFullImage(post.media_url)} style={{ width: '100%', maxHeight: '300px', borderRadius: '12px', objectFit: 'cover', marginBottom: '10px', cursor: 'pointer' }} />
-                          )}
+                          {post.media_url && <img src={post.media_url} alt="Post media" onClick={() => setFullImage(post.media_url)} style={{ width: '100%', maxHeight: '300px', borderRadius: '12px', objectFit: 'cover', marginBottom: '10px', cursor: 'pointer' }} />}
                           <div style={{ display: 'flex', gap: '30px', color: theme.textSecondary, fontSize: '13px' }}>
                             <span onClick={() => handleLikePost(post.id)} style={{ display: 'flex', alignItems: 'center', gap: '6px', cursor: 'pointer' }}><HeartIcon /> {post.likes_count || 0}</span>
                             <span style={{ display: 'flex', alignItems: 'center', gap: '6px', cursor: 'pointer' }}><CommentIcon /> {post.comments_count || 0}</span>
@@ -683,11 +889,7 @@ const Profile = () => {
 
       {/* Bottom Navigation */}
       <div style={{ position: 'fixed', bottom: 0, left: '50%', transform: 'translateX(-50%)', width: '100%', maxWidth: '600px', background: theme.bg, borderTop: `1px solid ${theme.border}`, display: 'flex', justifyContent: 'space-around', padding: '8px 0', zIndex: 100, paddingBottom: 'max(8px, env(safe-area-inset-bottom))' }}>
-        {tabs.map(tab => {
-          const Icon = tab.icon;
-          const isActive = (tab.id === 'home' && location.pathname === '/dashboard');
-          return <button key={tab.id} onClick={() => handleTabClick(tab.id)} style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '8px 16px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '4px', color: isActive ? '#FF6B00' : theme.textSecondary, fontFamily: 'inherit', transition: 'color 0.2s' }}><Icon /><span style={{ fontSize: '10px', fontWeight: isActive ? 600 : 400 }}>{tab.label}</span></button>;
-        })}
+        {tabs.map(tab => { const Icon = tab.icon; const isActive = (tab.id === 'home' && location.pathname === '/dashboard'); return <button key={tab.id} onClick={() => handleTabClick(tab.id)} style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '8px 16px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '4px', color: isActive ? '#FF6B00' : theme.textSecondary, fontFamily: 'inherit', transition: 'color 0.2s' }}><Icon /><span style={{ fontSize: '10px', fontWeight: isActive ? 600 : 400 }}>{tab.label}</span></button>; })}
       </div>
     </div>
   );
