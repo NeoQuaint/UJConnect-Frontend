@@ -16,6 +16,10 @@ const Login = () => {
   const [checkingAuth, setCheckingAuth] = useState(true);
   const [step, setStep] = useState(1);
 
+  // Verification state
+  const [showVerificationPrompt, setShowVerificationPrompt] = useState(false);
+  const [verificationEmail, setVerificationEmail] = useState('');
+
   const [formData, setFormData] = useState({
     full_name: '',
     preferred_name: '',
@@ -38,7 +42,10 @@ const Login = () => {
   useEffect(() => {
     const token = localStorage.getItem('ujconnect_token');
     if (token) {
-      navigate('/dashboard', { replace: true });
+      const user = JSON.parse(localStorage.getItem('ujconnect_user') || '{}');
+      if (user.verified) {
+        navigate('/dashboard', { replace: true });
+      }
     }
     setCheckingAuth(false);
   }, [navigate]);
@@ -47,7 +54,13 @@ const Login = () => {
     if (termsAccepted) {
       const token = localStorage.getItem('ujconnect_token');
       if (token) {
-        navigate('/dashboard');
+        const user = JSON.parse(localStorage.getItem('ujconnect_user') || '{}');
+        if (user.verified) {
+          navigate('/dashboard');
+        } else {
+          setShowVerificationPrompt(true);
+          setVerificationEmail(user.email);
+        }
       } else {
         setShowAuth(true);
         setIsSignUp(true);
@@ -95,7 +108,8 @@ const Login = () => {
       localStorage.setItem('ujconnect_user', JSON.stringify(data.user));
       localStorage.setItem('ujconnect_token', data.token);
       setShowAuth(false);
-      window.location.href = '/dashboard';
+      setShowVerificationPrompt(true);
+      setVerificationEmail(data.user.email);
     } catch (err) {
       setAuthError(err.response?.data?.error || 'Registration failed. Please try again.');
     } finally {
@@ -113,6 +127,16 @@ const Login = () => {
         email: formData.email,
         password: formData.password
       });
+
+      if (!data.user.verified) {
+        localStorage.setItem('ujconnect_user', JSON.stringify(data.user));
+        localStorage.setItem('ujconnect_token', data.token);
+        setShowAuth(false);
+        setShowVerificationPrompt(true);
+        setVerificationEmail(data.user.email);
+        setIsAuthLoading(false);
+        return;
+      }
 
       localStorage.setItem('ujconnect_user', JSON.stringify(data.user));
       localStorage.setItem('ujconnect_token', data.token);
@@ -180,8 +204,8 @@ const Login = () => {
             src="/UJCONNECT.png"
             alt="UJ Connect"
             style={{
-              height: '100px',
-              width: '100px',
+              height: '65px',
+              width: 'auto',
               display: 'block'
             }}
           />
@@ -285,6 +309,96 @@ const Login = () => {
           UJ Connect 2026
         </p>
       </div>
+
+      {/* VERIFICATION PROMPT */}
+      {showVerificationPrompt && (
+        <div style={{
+          position: 'fixed',
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
+          background: 'white',
+          zIndex: 3000,
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          padding: '20px'
+        }}>
+          <div style={{ textAlign: 'center', maxWidth: '400px' }}>
+            <div style={{
+              width: '80px',
+              height: '80px',
+              borderRadius: '50%',
+              background: '#FFF7ED',
+              display: 'inline-flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              marginBottom: '24px'
+            }}>
+              <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="#FF6B00" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/>
+                <polyline points="22,6 12,13 2,6"/>
+              </svg>
+            </div>
+            <h2 style={{ fontSize: '24px', fontWeight: 700, color: '#1a1a1a', marginBottom: '12px' }}>
+              Check your email
+            </h2>
+            <p style={{ fontSize: '15px', color: '#666', lineHeight: 1.6, marginBottom: '8px' }}>
+              We sent a verification link to
+            </p>
+            <p style={{ fontSize: '15px', fontWeight: 600, color: '#FF6B00', marginBottom: '24px' }}>
+              {verificationEmail}
+            </p>
+            <p style={{ fontSize: '13px', color: '#888', marginBottom: '32px', lineHeight: 1.5 }}>
+              Click the link in your email to verify your account.
+              <br />
+              You cannot access UJ Connect until you verify.
+            </p>
+            <button
+              onClick={() => {
+                const user = JSON.parse(localStorage.getItem('ujconnect_user') || '{}');
+                if (user.verified) {
+                  setShowVerificationPrompt(false);
+                  window.location.href = '/dashboard';
+                } else {
+                  alert('Your account is not verified yet. Please check your email and click the verification link.');
+                }
+              }}
+              style={{
+                padding: '14px 40px',
+                background: '#FF6B00',
+                color: 'white',
+                border: 'none',
+                borderRadius: '50px',
+                fontSize: '15px',
+                fontWeight: 600,
+                cursor: 'pointer',
+                fontFamily: 'inherit',
+                boxShadow: '0 6px 20px rgba(255, 107, 0, 0.25)'
+              }}
+            >
+              I've verified
+            </button>
+            <p style={{ marginTop: '24px', fontSize: '12px', color: '#aaa' }}>
+              Didn't get the email? Check spam or{' '}
+              <span
+                onClick={async () => {
+                  try {
+                    await axios.post(`${API_URL}/api/auth/resend-verification`, { email: verificationEmail });
+                    alert('Verification email resent!');
+                  } catch (err) {
+                    alert('Failed to resend. Try again.');
+                  }
+                }}
+                style={{ color: '#FF6B00', cursor: 'pointer', textDecoration: 'underline' }}
+              >
+                resend
+              </span>
+            </p>
+          </div>
+        </div>
+      )}
 
       {/* AUTH MODAL */}
       {showAuth && (

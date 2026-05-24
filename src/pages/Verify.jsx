@@ -20,11 +20,13 @@ const Verify = () => {
 
     axios.get(`${API_URL}/api/auth/verify?token=${token}`)
       .then(({ data }) => {
+        // Update localStorage with verified user
         localStorage.setItem('ujconnect_user', JSON.stringify(data.user));
         localStorage.setItem('ujconnect_token', data.token);
         setStatus('success');
+        // Redirect to dashboard after 2 seconds
         setTimeout(() => {
-          navigate('/dashboard');
+          window.location.href = '/dashboard';
         }, 2000);
       })
       .catch(err => {
@@ -121,7 +123,7 @@ const Verify = () => {
           {status === 'verifying'
             ? 'Please wait while we verify your account...'
             : status === 'success'
-              ? 'Your account is ready. Redirecting you now...'
+              ? 'Your account is ready. Taking you to UJ Connect...'
               : error}
         </p>
 
