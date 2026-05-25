@@ -188,6 +188,11 @@ const Dashboard = () => {
   const [loadingPeople, setLoadingPeople] = useState(false);
   const [addedUsers, setAddedUsers] = useState([]);
 
+  // Search
+  const [searchQuery, setSearchQuery] = useState('');
+  const [searchResults, setSearchResults] = useState({ users: [], posts: [] });
+  const [showSearchResults, setShowSearchResults] = useState(false);
+
   const progressTimerRef = useRef(null);
   const videoRef = useRef(null);
   const [darkMode, setDarkMode] = useState(() => localStorage.getItem('ujconnect_dark_mode') === 'true');
@@ -232,6 +237,20 @@ const Dashboard = () => {
   const handleFindPeople = async () => { setLoadingPeople(true); try { const { data } = await axios.get(`${API_URL}/api/users/match`, { params: { scope: meetFilters.scope, gender: meetFilters.gender, limit: meetFilters.groupSize, exclude: [user.id, ...addedUsers.map(u => u.id)] } }); setMatchedPeople(data || []); } catch (err) { setMatchedPeople([{ id: 10, preferred_name: 'Thabo', full_name: 'Thabo Molefe', department: 'Applied Information Systems', profile_pic: null, year: '2nd' },{ id: 11, preferred_name: 'Lerato', full_name: 'Lerato Khumalo', department: 'Marketing', profile_pic: null, year: '3rd' },{ id: 12, preferred_name: 'Sipho', full_name: 'Sipho Nkosi', department: 'Finance & Investment Management', profile_pic: null, year: '1st' }].slice(0, meetFilters.groupSize)); } finally { setLoadingPeople(false); } };
   const handleAddPerson = (person) => { setAddedUsers(prev => [...prev, person]); setMatchedPeople(prev => prev.filter(p => p.id !== person.id)); };
 
+  const handleSearch = async (query) => {
+    setSearchQuery(query);
+    if (query.trim().length < 1) {
+      setShowSearchResults(false);
+      setSearchResults({ users: [], posts: [] });
+      return;
+    }
+    try {
+      const { data } = await axios.get(`${API_URL}/api/search?q=${encodeURIComponent(query)}`);
+      setSearchResults(data);
+      setShowSearchResults(true);
+    } catch (err) { /* silent */ }
+  };
+
   const formatTime = (ds) => { const n = new Date(), d = new Date(ds), dm = Math.floor((n-d)/60000), dh = Math.floor(dm/60), dd = Math.floor(dh/24); if (dm<1) return 'Just now'; if (dm<60) return `${dm}m`; if (dh<24) return `${dh}h`; if (dd===1) return 'Yesterday'; if (dd<7) return `${dd}d`; return d.toLocaleDateString('en-ZA',{day:'numeric',month:'short'}); };
   const renderContent = (t) => { if(!t) return null; return t.split(/(#\w+)/g).map((p,i)=>p.startsWith('#')?<span key={i} style={{color:'#4da6ff',fontWeight:500}}>{p}</span>:p); };
   const getFacultyColor = (dept) => { const c=['Applied Information Systems','Business Management','Economics and Econometrics','Finance & Investment Management','Information & Knowledge Management','Public Management & Governance','Hospitality','Commercial Accountancy','Industrial Psychology','Marketing','Transport & Supply Chain Management','Tourism','Accountancy']; if(c.some(d=>dept?.includes(d)))return'#2563eb'; if(dept?.includes('Law'))return'#dc2626'; if(dept?.includes('Science'))return'#16a34a'; if(dept?.includes('Humanities'))return'#9333ea'; if(dept?.includes('Health'))return'#ea580c'; if(dept?.includes('Engineering'))return'#ca8a04'; return'#666'; };
@@ -240,12 +259,12 @@ const Dashboard = () => {
   const theme = { bg:darkMode?'#000':'#fff', text:darkMode?'#fff':'#1a1a1a', textSecondary:darkMode?'#aaa':'#888', border:darkMode?'#222':'#eee', borderLight:darkMode?'#1a1a1a':'#f5f5f5', cardBg:darkMode?'#111':'#f5f5f5', inputBg:darkMode?'#1a1a1a':'#f5f5f5' };
 
   const hubTabs = [
-    { id: 'connect', title: '', subtitle: '', color: '#FF6B00', bg: '#FFF7ED', icon: ConnectLogo, link: '/connect-hub', isLogo: true },
-    { id: 'running', title: 'Running Club', subtitle: 'Join the pack', color: '#16a34a', bg: '#f0fdf4', link: '/running-club' },
-    { id: 'varsity', title: 'Varsity Cup', subtitle: 'Game day', color: '#dc2626', bg: '#fef2f2', link: '/varsity-cup' },
-    { id: 'tours', title: 'Campus Tours', subtitle: 'Explore UJ', color: '#9333ea', bg: '#faf5ff', link: '/campus-tours' },
-    { id: 'career', title: 'Career Fair', subtitle: 'Get hired', color: '#ea580c', bg: '#fff7ed', link: '/career-fair' },
-    { id: 'gaming', title: 'Gaming Zone', subtitle: 'Play now', color: '#ca8a04', bg: '#fefce8', link: '/gaming' },
+    { id: 'connect', title: '', subtitle: '', color: '#FF6B00', video: '/campus.mp4', link: '/connect-hub', isLogo: true },
+    { id: 'running', title: 'Running Club', subtitle: 'Join the pack', color: '#16a34a', video: '/run.mp4', link: '/running-club' },
+    { id: 'varsity', title: 'Varsity Cup', subtitle: 'Game day', color: '#dc2626', video: '/run.mp4', link: '/varsity-cup' },
+    { id: 'tours', title: 'Campus Tours', subtitle: 'Explore UJ', color: '#9333ea', video: '/campus.mp4', link: '/campus-tours' },
+    { id: 'study', title: 'Study Sessions', subtitle: 'Grind time', color: '#ea580c', video: '/study.mp4', link: '/study-sessions' },
+    { id: 'career', title: 'Career Fair', subtitle: 'Get hired', color: '#ca8a04', video: '/campus.mp4', link: '/career-fair' },
   ];
 
   const defaultStories = [{id:'d1',name:'Thabo',dept:'Applied Information Systems'},{id:'d2',name:'Lerato',dept:'Marketing'},{id:'d3',name:'Sipho',dept:'Finance & Investment Management'},{id:'d4',name:'Amahle',dept:'Information & Knowledge Management'},{id:'d5',name:'Neo',dept:'Law'}];
@@ -281,72 +300,18 @@ const Dashboard = () => {
         </div>
       </div>
 
-      {/* Hub Tabs Banner - Rectangular Facebook-style */}
+      {/* Hub Tabs Banner - Rectangular with playing videos */}
       <div style={{ padding: '12px 20px', borderBottom: `1px solid ${theme.border}` }}>
         <div style={{ display: 'flex', gap: 10, overflowX: 'auto', paddingBottom: 4 }}>
           {hubTabs.map((tab) => (
-            <div
-              key={tab.id}
-              onClick={() => navigate(tab.link)}
-              style={{
-                flexShrink: 0,
-                width: tab.isLogo ? 110 : 130,
-                height: 180,
-                borderRadius: 12,
-                background: tab.isLogo
-                  ? `linear-gradient(135deg, ${tab.color}, ${tab.color}dd)`
-                  : darkMode ? '#111' : tab.bg,
-                border: tab.isLogo ? 'none' : `1px solid ${darkMode ? '#222' : tab.color}20`,
-                cursor: 'pointer',
-                display: 'flex',
-                flexDirection: 'column',
-                alignItems: 'center',
-                justifyContent: tab.isLogo ? 'center' : 'flex-start',
-                padding: tab.isLogo ? 0 : 12,
-                position: 'relative',
-                overflow: 'hidden'
-              }}
-            >
-              {tab.isLogo ? (
-                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6 }}>
-                  <div style={{ color: 'white', transform: 'scale(2)' }}>
-                    <ConnectLogo />
-                  </div>
-                </div>
-              ) : (
-                <>
-                  <div style={{
-                    width: '100%',
-                    height: 100,
-                    borderRadius: 8,
-                    background: `linear-gradient(135deg, ${tab.color}22, ${tab.color}44)`,
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    marginBottom: 10
-                  }}>
-                    <div style={{ fontSize: 32, opacity: 0.6 }}>{tab.title.charAt(0)}</div>
-                  </div>
-                  <div style={{ fontSize: 12, fontWeight: 700, color: tab.color, marginBottom: 2 }}>{tab.title}</div>
-                  <div style={{ fontSize: 10, color: theme.textSecondary, textAlign: 'center' }}>{tab.subtitle}</div>
-                </>
-              )}
+            <div key={tab.id} onClick={() => navigate(tab.link)} style={{ flexShrink: 0, width: tab.isLogo ? 110 : 130, height: 180, borderRadius: 12, cursor: 'pointer', position: 'relative', overflow: 'hidden', border: tab.isLogo ? 'none' : `1px solid ${darkMode ? '#222' : '#eee'}` }}>
+              <video src={tab.video} autoPlay muted loop playsInline style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', objectFit: 'cover' }} />
+              <div style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.35)' }} />
+              <div style={{ position: 'relative', zIndex: 2, height: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: tab.isLogo ? 'center' : 'flex-end', padding: 12 }}>
+                {tab.isLogo ? <ConnectLogo /> : <><div style={{ fontSize: 12, fontWeight: 700, color: 'white', marginBottom: 2, textShadow: '0 1px 3px rgba(0,0,0,0.5)' }}>{tab.title}</div><div style={{ fontSize: 10, color: 'rgba(255,255,255,0.8)', textAlign: 'center', textShadow: '0 1px 3px rgba(0,0,0,0.5)' }}>{tab.subtitle}</div></>}
+              </div>
             </div>
           ))}
-        </div>
-      </div>
-
-      {/* Search + What's happening */}
-      <div style={{ padding: '12px 20px', borderBottom: `1px solid ${theme.border}` }}>
-        <div style={{ display: 'inline-flex', alignItems: 'center', gap: 8, background: theme.inputBg, borderRadius: 24, padding: '10px 16px', marginBottom: 12 }}>
-          <SearchIcon />
-          <input type="text" placeholder="Search" style={{ width: 55, border: 'none', outline: 'none', background: 'transparent', fontSize: 15, fontFamily: 'inherit', color: theme.text }} />
-        </div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-          <div style={{ width: 34, height: 34, borderRadius: '50%', background: user.profile_pic ? `url(${user.profile_pic}) center/cover` : '#FF6B00', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'white', fontWeight: 700, fontSize: 14, flexShrink: 0 }}>
-            {!user.profile_pic && (user.full_name?.charAt(0) || user.email?.charAt(0) || 'U')}
-          </div>
-          <input type="text" placeholder="What's happening?" onFocus={() => setShowComposer(true)} style={{ flex: 1, border: 'none', outline: 'none', fontSize: 15, fontFamily: 'inherit', color: theme.text, background: 'transparent', cursor: 'pointer' }} readOnly />
         </div>
       </div>
 
@@ -355,15 +320,70 @@ const Dashboard = () => {
         <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4, flexShrink: 0 }}>
           <div onClick={() => document.getElementById('story-file-input').click()} style={{ cursor: 'pointer', color: '#FF6B00', display: 'flex', justifyContent: 'center', marginBottom: 2 }}><SmallPlusIcon /></div>
           <div onClick={() => { if (myStories.length > 0) handleViewStory(user.id); else document.getElementById('story-file-input').click(); }} style={{ width: 60, height: 60, borderRadius: '50%', padding: 3, background: myStories.length > 0 ? getFacultyGradient(user.department) : 'transparent', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}>
-            <div style={{ width: 54, height: 54, borderRadius: '50%', overflow: 'hidden', display: 'flex', alignItems: 'center', justifyContent: 'center', background: user.profile_pic ? `url(${user.profile_pic}) center/cover` : theme.cardBg, border: myStories.length === 0 ? `2px solid ${theme.border}` : 'none' }}>
-              {!user.profile_pic && <span style={{ fontWeight: 700, fontSize: 18, color: theme.textSecondary }}>{user.full_name?.charAt(0) || 'U'}</span>}
-            </div>
+            <div style={{ width: 54, height: 54, borderRadius: '50%', overflow: 'hidden', display: 'flex', alignItems: 'center', justifyContent: 'center', background: user.profile_pic ? `url(${user.profile_pic}) center/cover` : theme.cardBg, border: myStories.length === 0 ? `2px solid ${theme.border}` : 'none' }}>{!user.profile_pic && <span style={{ fontWeight: 700, fontSize: 18, color: theme.textSecondary }}>{user.full_name?.charAt(0) || 'U'}</span>}</div>
           </div>
           <span style={{ fontSize: 11, color: theme.textSecondary, fontWeight: 500 }}>You</span>
         </div>
         <input id="story-file-input" type="file" accept="image/*,video/*" onChange={handleStoryFileSelect} style={{ display: 'none' }} />
         {Object.keys(storiesByUser).filter(uid => parseInt(uid) !== user.id).map(uid => { const uss = storiesByUser[uid]; const fs = uss[0]; const av = uss.every(s => viewedStories.includes(s.id)); return (<div key={uid} onClick={() => handleViewStory(parseInt(uid))} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4, cursor: 'pointer', flexShrink: 0 }}><div style={{ width: 60, height: 60, borderRadius: '50%', padding: 3, background: av ? '#888' : getFacultyGradient(fs.department), display: 'flex', alignItems: 'center', justifyContent: 'center' }}><div style={{ width: 54, height: 54, borderRadius: '50%', overflow: 'hidden', display: 'flex', alignItems: 'center', justifyContent: 'center', background: theme.cardBg }}>{fs.profile_pic ? <img src={fs.profile_pic} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} /> : <span style={{ fontWeight: 700, fontSize: 18, color: theme.textSecondary }}>{(fs.preferred_name || fs.full_name || '?').charAt(0)}</span>}</div></div><span style={{ fontSize: 11, color: theme.textSecondary, fontWeight: 500 }}>{fs.preferred_name || fs.full_name || 'User'}</span></div>); })}
         {Object.keys(storiesByUser).filter(uid => parseInt(uid) !== user.id).length === 0 && defaultStories.map(s => (<div key={s.id} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4, cursor: 'pointer', flexShrink: 0 }}><div style={{ width: 60, height: 60, borderRadius: '50%', padding: 3, background: getFacultyGradient(s.dept), display: 'flex', alignItems: 'center', justifyContent: 'center' }}><div style={{ width: 54, height: 54, borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', background: `linear-gradient(135deg,${getFacultyColor(s.dept)},${getFacultyColor(s.dept)}88)` }}><span style={{ fontWeight: 700, fontSize: 18, color: 'white' }}>{s.name.charAt(0)}</span></div></div><span style={{ fontSize: 11, color: theme.textSecondary, fontWeight: 500 }}>{s.name}</span></div>))}
+      </div>
+
+      {/* Search + What's happening */}
+      <div style={{ padding: '12px 20px', borderBottom: `1px solid ${theme.border}`, position: 'relative' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 12 }}>
+          <div style={{ width: 34, height: 34, borderRadius: '50%', background: user.profile_pic ? `url(${user.profile_pic}) center/cover` : '#FF6B00', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'white', fontWeight: 700, fontSize: 14, flexShrink: 0 }}>
+            {!user.profile_pic && (user.full_name?.charAt(0) || user.email?.charAt(0) || 'U')}
+          </div>
+          <input
+            type="text"
+            placeholder="Search UJ Connect..."
+            value={searchQuery}
+            onChange={(e) => handleSearch(e.target.value)}
+            onFocus={() => searchQuery.trim() && setShowSearchResults(true)}
+            style={{ flex: 1, border: 'none', outline: 'none', fontSize: 15, fontFamily: 'inherit', color: theme.text, background: theme.inputBg, borderRadius: 24, padding: '10px 16px' }}
+          />
+          <SearchIcon />
+        </div>
+
+        {/* Search Results Dropdown */}
+        {showSearchResults && (searchResults.users.length > 0 || searchResults.posts.length > 0) && (
+          <div style={{ position: 'absolute', top: '100%', left: 20, right: 20, background: theme.bg, borderRadius: 12, border: `1px solid ${theme.border}`, boxShadow: '0 10px 30px rgba(0,0,0,0.15)', zIndex: 50, maxHeight: 400, overflowY: 'auto' }}>
+            {searchResults.users.length > 0 && (
+              <div style={{ padding: '8px 0' }}>
+                <div style={{ fontSize: 12, fontWeight: 600, color: theme.textSecondary, padding: '8px 16px', textTransform: 'uppercase' }}>People</div>
+                {searchResults.users.map(u => (
+                  <div key={u.id} onClick={() => { navigate(`/profile/${u.id}`); setShowSearchResults(false); setSearchQuery(''); }} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 16px', cursor: 'pointer', background: 'transparent' }}
+                    onMouseEnter={e => e.currentTarget.style.background = theme.cardBg} onMouseLeave={e => e.currentTarget.style.background = 'transparent'}>
+                    <div style={{ width: 36, height: 36, borderRadius: '50%', background: u.profile_pic ? `url(${u.profile_pic}) center/cover` : getFacultyColor(u.department), display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'white', fontWeight: 600, fontSize: 13 }}>{!u.profile_pic && (u.preferred_name || u.full_name || '?').charAt(0)}</div>
+                    <div>
+                      <div style={{ fontWeight: 600, fontSize: 14, color: theme.text }}>{u.preferred_name || u.full_name}</div>
+                      <div style={{ fontSize: 12, color: theme.textSecondary }}>{u.department}</div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+            {searchResults.posts.length > 0 && (
+              <div style={{ padding: '8px 0', borderTop: searchResults.users.length > 0 ? `1px solid ${theme.border}` : 'none' }}>
+                <div style={{ fontSize: 12, fontWeight: 600, color: theme.textSecondary, padding: '8px 16px', textTransform: 'uppercase' }}>Posts</div>
+                {searchResults.posts.map(p => (
+                  <div key={p.id} onClick={() => { setShowSearchResults(false); setSearchQuery(''); }} style={{ padding: '10px 16px', cursor: 'pointer', fontSize: 13, color: theme.text, borderBottom: `1px solid ${theme.borderLight}` }}>
+                    <span style={{ fontWeight: 600 }}>{p.preferred_name || p.full_name}</span>: {p.content?.substring(0, 80)}{p.content?.length > 80 ? '...' : ''}
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* What's happening prompt */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+          <div style={{ width: 34, height: 34, borderRadius: '50%', background: user.profile_pic ? `url(${user.profile_pic}) center/cover` : '#FF6B00', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'white', fontWeight: 700, fontSize: 14, flexShrink: 0 }}>
+            {!user.profile_pic && (user.full_name?.charAt(0) || user.email?.charAt(0) || 'U')}
+          </div>
+          <input type="text" placeholder="What's happening?" onFocus={() => setShowComposer(true)} style={{ flex: 1, border: 'none', outline: 'none', fontSize: 15, fontFamily: 'inherit', color: theme.text, background: 'transparent', cursor: 'pointer' }} readOnly />
+        </div>
       </div>
 
       {/* Feed */}
@@ -417,10 +437,7 @@ const Dashboard = () => {
       {showMeetPeople && (
         <div onClick={() => setShowMeetPeople(false)} style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.8)', zIndex: 4000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }}>
           <div onClick={e => e.stopPropagation()} style={{ background: theme.bg, borderRadius: 20, width: '100%', maxWidth: 450, maxHeight: '90vh', overflowY: 'auto', padding: 24 }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}><PlusCircleIcon /><h3 style={{ fontSize: 18, fontWeight: 700, color: theme.text, margin: 0 }}>Meet New People</h3></div>
-              <button onClick={() => setShowMeetPeople(false)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: theme.textSecondary }}><CloseIcon /></button>
-            </div>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}><div style={{ display: 'flex', alignItems: 'center', gap: 8 }}><PlusCircleIcon /><h3 style={{ fontSize: 18, fontWeight: 700, color: theme.text, margin: 0 }}>Meet New People</h3></div><button onClick={() => setShowMeetPeople(false)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: theme.textSecondary }}><CloseIcon /></button></div>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 12, marginBottom: 20 }}>
               <div><label style={{ fontSize: 12, fontWeight: 600, color: theme.textSecondary, display: 'block', marginBottom: 6 }}>Where from?</label><div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>{scopeOptions.map(opt => (<button key={opt.value} onClick={() => setMeetFilters(prev => ({ ...prev, scope: opt.value }))} style={{ padding: '6px 12px', borderRadius: 20, border: meetFilters.scope === opt.value ? 'none' : `1.5px solid ${theme.border}`, background: meetFilters.scope === opt.value ? '#FF6B00' : 'transparent', color: meetFilters.scope === opt.value ? 'white' : theme.textSecondary, fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' }}>{opt.label}</button>))}</div></div>
               <div><label style={{ fontSize: 12, fontWeight: 600, color: theme.textSecondary, display: 'block', marginBottom: 6 }}>Who?</label><div style={{ display: 'flex', gap: 6 }}>{genderOptions.map(opt => (<button key={opt.value} onClick={() => setMeetFilters(prev => ({ ...prev, gender: opt.value }))} style={{ padding: '6px 12px', borderRadius: 20, border: meetFilters.gender === opt.value ? 'none' : `1.5px solid ${theme.border}`, background: meetFilters.gender === opt.value ? '#FF6B00' : 'transparent', color: meetFilters.gender === opt.value ? 'white' : theme.textSecondary, fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' }}>{opt.label}</button>))}</div></div>
@@ -429,18 +446,12 @@ const Dashboard = () => {
             </div>
             {matchedPeople.length > 0 && (
               <div style={{ position: 'relative', width: '100%', height: 300, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                <div style={{ position: 'absolute', width: 220, height: 220, borderRadius: '50%', border: `1px dashed ${theme.border}`, animation: 'spin 30s linear infinite' }} />
-                <div style={{ position: 'absolute', width: 160, height: 160, borderRadius: '50%', border: `1px dashed ${theme.border}`, animation: 'spin 20s linear infinite reverse' }} />
+                <div style={{ position: 'absolute', width: 220, height: 220, borderRadius: '50%', border: `1px dashed ${theme.border}`, animation: 'spin 30s linear infinite' }} /><div style={{ position: 'absolute', width: 160, height: 160, borderRadius: '50%', border: `1px dashed ${theme.border}`, animation: 'spin 20s linear infinite reverse' }} />
                 <div style={{ zIndex: 2, textAlign: 'center', background: theme.bg, padding: 16, borderRadius: '50%', width: 90, height: 90, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center' }}><div style={{ fontSize: 13, fontWeight: 700, color: theme.text }}>Meet</div><div style={{ fontSize: 11, color: theme.textSecondary }}>Tap +</div></div>
                 {matchedPeople.map((person, i) => { const total = matchedPeople.length; const angle = (i / total) * 2 * Math.PI - Math.PI / 2; const radius = 110; const x = Math.cos(angle) * radius; const y = Math.sin(angle) * radius; return (<div key={person.id} onClick={() => handleAddPerson(person)} style={{ position: 'absolute', transform: `translate(${x}px, ${y}px)`, cursor: 'pointer', zIndex: 3, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4 }}><div style={{ width: 52, height: 52, borderRadius: '50%', background: person.profile_pic ? `url(${person.profile_pic}) center/cover` : getFacultyColor(person.department), display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'white', fontWeight: 700, fontSize: 18, border: `3px solid ${theme.bg}`, boxShadow: '0 4px 12px rgba(0,0,0,0.15)', animation: 'float 3s ease-in-out infinite', animationDelay: `${i * 0.5}s`, position: 'relative' }}>{!person.profile_pic && (person.preferred_name || person.full_name || '?').charAt(0)}<div style={{ position: 'absolute', bottom: -3, right: -3, width: 20, height: 20, borderRadius: '50%', background: '#FF6B00', display: 'flex', alignItems: 'center', justifyContent: 'center', border: `2px solid ${theme.bg}` }}><span style={{ color: 'white', fontSize: 12, lineHeight: 1, fontWeight: 700 }}>+</span></div></div><span style={{ fontSize: 10, color: theme.textSecondary, fontWeight: 500, maxWidth: 60, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', textAlign: 'center' }}>{person.preferred_name || person.full_name}</span></div>); })}
               </div>
             )}
-            {addedUsers.length > 0 && (
-              <div style={{ marginTop: 20, borderTop: `1px solid ${theme.border}`, paddingTop: 16 }}>
-                <div style={{ fontSize: 13, fontWeight: 600, color: theme.textSecondary, marginBottom: 10 }}>Added ({addedUsers.length})</div>
-                {addedUsers.map(person => (<div key={person.id} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '8px 0' }}><div style={{ width: 36, height: 36, borderRadius: '50%', background: getFacultyColor(person.department), display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'white', fontWeight: 600, fontSize: 14 }}>{(person.preferred_name || person.full_name || '?').charAt(0)}</div><span style={{ fontSize: 14, color: theme.text, flex: 1 }}>{person.preferred_name || person.full_name}</span><button onClick={() => navigate('/messages')} style={{ background: '#FF6B00', color: 'white', border: 'none', padding: '6px 14px', borderRadius: 20, fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' }}>Chat</button></div>))}
-              </div>
-            )}
+            {addedUsers.length > 0 && (<div style={{ marginTop: 20, borderTop: `1px solid ${theme.border}`, paddingTop: 16 }}><div style={{ fontSize: 13, fontWeight: 600, color: theme.textSecondary, marginBottom: 10 }}>Added ({addedUsers.length})</div>{addedUsers.map(person => (<div key={person.id} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '8px 0' }}><div style={{ width: 36, height: 36, borderRadius: '50%', background: getFacultyColor(person.department), display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'white', fontWeight: 600, fontSize: 14 }}>{(person.preferred_name || person.full_name || '?').charAt(0)}</div><span style={{ fontSize: 14, color: theme.text, flex: 1 }}>{person.preferred_name || person.full_name}</span><button onClick={() => navigate('/messages')} style={{ background: '#FF6B00', color: 'white', border: 'none', padding: '6px 14px', borderRadius: 20, fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' }}>Chat</button></div>))}</div>)}
           </div>
         </div>
       )}

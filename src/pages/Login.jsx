@@ -16,7 +16,6 @@ const Login = () => {
   const [checkingAuth, setCheckingAuth] = useState(true);
   const [step, setStep] = useState(1);
 
-  // Verification state
   const [showVerificationPrompt, setShowVerificationPrompt] = useState(false);
   const [verificationEmail, setVerificationEmail] = useState('');
 
@@ -350,19 +349,25 @@ const Login = () => {
             <p style={{ fontSize: '15px', fontWeight: 600, color: '#FF6B00', marginBottom: '24px' }}>
               {verificationEmail}
             </p>
-            <p style={{ fontSize: '13px', color: '#888', marginBottom: '32px', lineHeight: 1.5 }}>
+            <p style={{ fontSize: '13px', color: '#888', marginBottom: '8px', lineHeight: 1.5 }}>
               Click the link in your email to verify your account.
-              <br />
-              You cannot access UJ Connect until you verify.
+            </p>
+            <p style={{ fontSize: '12px', color: '#dc2626', fontWeight: 600, marginBottom: '32px' }}>
+              Check your spam/junk folder if you don't see it!
             </p>
             <button
-              onClick={() => {
-                const user = JSON.parse(localStorage.getItem('ujconnect_user') || '{}');
-                if (user.verified) {
-                  setShowVerificationPrompt(false);
-                  window.location.href = '/dashboard';
-                } else {
-                  alert('Your account is not verified yet. Please check your email and click the verification link.');
+              onClick={async () => {
+                try {
+                  const storedUser = JSON.parse(localStorage.getItem('ujconnect_user') || '{}');
+                  const { data } = await axios.get(`${API_URL}/api/users/${storedUser.id}`);
+                  if (data.verified) {
+                    localStorage.setItem('ujconnect_user', JSON.stringify(data));
+                    window.location.reload();
+                  } else {
+                    alert('Your account is not verified yet. Please check your email and click the verification link.');
+                  }
+                } catch (err) {
+                  alert('Could not check verification status. Please try again.');
                 }
               }}
               style={{
@@ -381,14 +386,18 @@ const Login = () => {
               I've verified
             </button>
             <p style={{ marginTop: '24px', fontSize: '12px', color: '#aaa' }}>
-              Didn't get the email? Check spam or{' '}
+              Didn't get the email?{' '}
               <span
                 onClick={async () => {
                   try {
                     await axios.post(`${API_URL}/api/auth/resend-verification`, { email: verificationEmail });
-                    alert('Verification email resent!');
+                    alert('Verification email resent! Check your inbox and spam folder.');
                   } catch (err) {
-                    alert('Failed to resend. Try again.');
+                    if (err.response?.status === 400) {
+                      alert('Your account may already be verified. Try clicking "I\'ve verified" above.');
+                    } else {
+                      alert('Failed to resend. Please try again later.');
+                    }
                   }
                 }}
                 style={{ color: '#FF6B00', cursor: 'pointer', textDecoration: 'underline' }}

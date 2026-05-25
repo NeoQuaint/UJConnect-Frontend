@@ -1,8 +1,10 @@
 import { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
+import { io } from 'socket.io-client';
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000';
+const SOCKET_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000';
 
 const ArrowLeftIcon = () => (
   <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
@@ -45,6 +47,13 @@ const MessagesIcon = () => (
   </svg>
 );
 
+const SendIcon = () => (
+  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+    <line x1="22" y1="2" x2="11" y2="13"/>
+    <polygon points="22 2 15 22 11 13 2 9 22 2"/>
+  </svg>
+);
+
 const FilterIcon = () => (
   <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
     <polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"/>
@@ -59,37 +68,70 @@ const PlusCircleIcon = () => (
   </svg>
 );
 
-const SendIcon = () => (
-  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-    <line x1="22" y1="2" x2="11" y2="13"/>
-    <polygon points="22 2 15 22 11 13 2 9 22 2"/>
-  </svg>
-);
-
 const Messages = () => {
   const navigate = useNavigate();
   const storedUser = JSON.parse(localStorage.getItem('ujconnect_user') || '{}');
   const [user, setUser] = useState(storedUser);
   const [darkMode, setDarkMode] = useState(() => localStorage.getItem('ujconnect_dark_mode') === 'true');
+  const [addedUsers, setAddedUsers] = useState([]);
+  const [activeChat, setActiveChat] = useState(null);
+  const [messages, setMessages] = useState([]);
+  const [chatInput, setChatInput] = useState('');
+  const [onlineUsers, setOnlineUsers] = useState([]);
+  const [typingUsers, setTypingUsers] = useState({});
+  const messagesEndRef = useRef(null);
+  const socketRef = useRef(null);
+  const typingTimeoutRef = useRef(null);
+
   const [showMeetPeople, setShowMeetPeople] = useState(false);
+  const [meetFilters, setMeetFilters] = useState({ scope: 'faculty', gender: 'mix', groupSize: 3 });
   const [matchedPeople, setMatchedPeople] = useState([]);
   const [loadingPeople, setLoadingPeople] = useState(false);
-  const [addedUsers, setAddedUsers] = useState([]);
-  const orbitRef = useRef(null);
-
-  // Filters
-  const [filters, setFilters] = useState({
-    scope: 'faculty',
-    gender: 'mix',
-    groupSize: 3
-  });
 
   useEffect(() => {
     fetchUserProfile();
     const onStorage = () => setDarkMode(localStorage.getItem('ujconnect_dark_mode') === 'true');
     window.addEventListener('storage', onStorage);
-    return () => window.removeEventListener('storage', onStorage);
+
+    // Connect to Socket.io
+    socketRef.current = io(SOCKET_URL);
+    socketRef.current.emit('user_online', storedUser.id);
+
+    socketRef.current.on('online_users', (users) => {
+      setOnlineUsers(users);
+    });
+
+    socketRef.current.on('new_message', (msg) => {
+      if (activeChat && (msg.sender_id === activeChat.id || msg.sender_id === storedUser.id)) {
+        setMessages(prev => [...prev, msg]);
+      }
+    });
+
+    socketRef.current.on('user_typing', (data) => {
+      setTypingUsers(prev => ({ ...prev, [data.sender_id]: true }));
+    });
+
+    socketRef.current.on('user_stop_typing', (data) => {
+      setTypingUsers(prev => ({ ...prev, [data.sender_id]: false }));
+    });
+
+    return () => {
+      window.removeEventListener('storage', onStorage);
+      if (socketRef.current) {
+        socketRef.current.disconnect();
+      }
+    };
   }, []);
+
+  useEffect(() => {
+    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+  }, [messages]);
+
+  useEffect(() => {
+    if (activeChat) {
+      fetchMessages(activeChat.id);
+    }
+  }, [activeChat]);
 
   const fetchUserProfile = async () => {
     try {
@@ -99,29 +141,47 @@ const Messages = () => {
     } catch (err) {}
   };
 
+  const fetchMessages = async (otherUserId) => {
+    try {
+      const { data } = await axios.get(`${API_URL}/api/messages/${storedUser.id}/${otherUserId}`);
+      setMessages(data || []);
+    } catch (err) {}
+  };
+
+  const handleSendMessage = () => {
+    if (!chatInput.trim() || !activeChat) return;
+    socketRef.current.emit('send_message', {
+      sender_id: storedUser.id,
+      receiver_id: activeChat.id,
+      content: chatInput.trim()
+    });
+    setChatInput('');
+    socketRef.current.emit('stop_typing', { receiver_id: activeChat.id });
+  };
+
+  const handleTyping = () => {
+    if (!activeChat) return;
+    socketRef.current.emit('typing', { sender_id: storedUser.id, receiver_id: activeChat.id });
+    if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
+    typingTimeoutRef.current = setTimeout(() => {
+      socketRef.current.emit('stop_typing', { receiver_id: activeChat.id });
+    }, 1500);
+  };
+
   const handleFindPeople = async () => {
     setLoadingPeople(true);
     try {
       const { data } = await axios.get(`${API_URL}/api/users/match`, {
-        params: {
-          scope: filters.scope,
-          gender: filters.gender,
-          limit: filters.groupSize,
-          exclude: [user.id, ...addedUsers.map(u => u.id)]
-        }
+        params: { scope: meetFilters.scope, gender: meetFilters.gender, limit: meetFilters.groupSize, exclude: [user.id, ...addedUsers.map(u => u.id)] }
       });
       setMatchedPeople(data || []);
     } catch (err) {
-      // Fallback demo data
-      const demoPeople = [
+      setMatchedPeople([
         { id: 10, preferred_name: 'Thabo', full_name: 'Thabo Molefe', department: 'Applied Information Systems', profile_pic: null, year: '2nd' },
         { id: 11, preferred_name: 'Lerato', full_name: 'Lerato Khumalo', department: 'Marketing', profile_pic: null, year: '3rd' },
         { id: 12, preferred_name: 'Sipho', full_name: 'Sipho Nkosi', department: 'Finance & Investment Management', profile_pic: null, year: '1st' },
-      ].slice(0, filters.groupSize);
-      setMatchedPeople(demoPeople);
-    } finally {
-      setLoadingPeople(false);
-    }
+      ].slice(0, meetFilters.groupSize));
+    } finally { setLoadingPeople(false); }
   };
 
   const handleAddPerson = (person) => {
@@ -129,18 +189,11 @@ const Messages = () => {
     setMatchedPeople(prev => prev.filter(p => p.id !== person.id));
   };
 
-  const handleStartChat = (person) => {
-    navigate(`/messages/chat/${person.id}`, { state: { person } });
-  };
-
   const getFacultyColor = (dept) => {
-    const cbeDepts = ['Applied Information Systems', 'Business Management', 'Economics and Econometrics', 'Finance & Investment Management', 'Information & Knowledge Management', 'Public Management & Governance', 'Hospitality', 'Commercial Accountancy', 'Industrial Psychology', 'Marketing', 'Transport & Supply Chain Management', 'Tourism', 'Accountancy'];
-    if (cbeDepts.some(d => dept?.includes(d))) return '#2563eb';
+    const c = ['Applied Information Systems', 'Business Management', 'Finance & Investment Management', 'Information & Knowledge Management', 'Marketing'];
+    if (c.some(d => dept?.includes(d))) return '#2563eb';
     if (dept?.includes('Law')) return '#dc2626';
     if (dept?.includes('Science')) return '#16a34a';
-    if (dept?.includes('Humanities')) return '#9333ea';
-    if (dept?.includes('Health')) return '#ea580c';
-    if (dept?.includes('Engineering')) return '#ca8a04';
     return '#666';
   };
 
@@ -154,17 +207,19 @@ const Messages = () => {
   };
 
   const tabs = [
-    { id: 'home', icon: HomeIcon, label: 'Home' },
-    { id: 'projects', icon: ProjectsIcon, label: 'Projects' },
-    { id: 'communities', icon: CommunitiesIcon, label: 'Communities' },
-    { id: 'forums', icon: ForumsIcon, label: 'Forums' },
-    { id: 'messages', icon: MessagesIcon, label: 'Messages' },
+    { id: 'home', icon: HomeIcon, label: 'Feed' },
+    { id: 'projects', icon: ProjectsIcon, label: 'Collabs' },
+    { id: 'communities', icon: CommunitiesIcon, label: 'Squads' },
+    { id: 'forums', icon: ForumsIcon, label: 'The Plug' },
+    { id: 'messages', icon: MessagesIcon, label: 'Chats' },
   ];
 
   const handleTabClick = (tabId) => {
     if (tabId === 'messages') return;
-    if (tabId === 'home') { navigate('/dashboard'); }
-    else { navigate(`/${tabId}`); }
+    if (tabId === 'home') navigate('/dashboard');
+    else if (tabId === 'projects') navigate('/projects');
+    else if (tabId === 'communities') navigate('/communities');
+    else if (tabId === 'forums') navigate('/forums');
   };
 
   const scopeOptions = [
@@ -188,211 +243,99 @@ const Messages = () => {
         <button onClick={() => navigate(-1)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: theme.text, padding: '4px', display: 'flex' }}>
           <ArrowLeftIcon />
         </button>
-        <h2 style={{ fontSize: '18px', fontWeight: 700, margin: 0, color: theme.text, position: 'absolute', left: '50%', transform: 'translateX(-50%)' }}>Messages</h2>
+        <h2 style={{ fontSize: '18px', fontWeight: 700, margin: 0, color: theme.text, position: 'absolute', left: '50%', transform: 'translateX(-50%)' }}>Chats</h2>
         <button onClick={() => setShowMeetPeople(!showMeetPeople)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: showMeetPeople ? '#FF6B00' : theme.textSecondary, padding: '4px', display: 'flex' }}>
           <FilterIcon />
         </button>
       </div>
 
-      {/* Chat List */}
-      <div style={{ padding: '16px 20px' }}>
-        {addedUsers.length === 0 ? (
-          <div style={{ textAlign: 'center', color: theme.textSecondary, fontSize: '15px', padding: '40px 0' }}>
-            No conversations yet.
-            <br />
-            <span style={{ fontSize: '13px' }}>Use the filter to meet new people!</span>
+      {/* Chat List or Active Chat */}
+      {activeChat ? (
+        <div style={{ display: 'flex', flexDirection: 'column', height: 'calc(100vh - 140px)' }}>
+          {/* Chat Header */}
+          <div style={{ padding: '12px 20px', borderBottom: `1px solid ${theme.border}`, display: 'flex', alignItems: 'center', gap: '10px', cursor: 'pointer' }} onClick={() => setActiveChat(null)}>
+            <ArrowLeftIcon />
+            <div style={{ width: 36, height: 36, borderRadius: '50%', background: getFacultyColor(activeChat.department), display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'white', fontWeight: 700, fontSize: 14, flexShrink: 0, position: 'relative' }}>
+              {(activeChat.preferred_name || activeChat.full_name || '?').charAt(0)}
+              {onlineUsers.includes(String(activeChat.id)) && (
+                <div style={{ position: 'absolute', bottom: 0, right: 0, width: 10, height: 10, borderRadius: '50%', background: '#16a34a', border: `2px solid ${theme.bg}` }} />
+              )}
+            </div>
+            <div style={{ flex: 1 }}>
+              <div style={{ fontWeight: 600, fontSize: 15, color: theme.text }}>{activeChat.preferred_name || activeChat.full_name}</div>
+              <div style={{ fontSize: 12, color: onlineUsers.includes(String(activeChat.id)) ? '#16a34a' : theme.textSecondary }}>
+                {typingUsers[activeChat.id] ? 'typing...' : onlineUsers.includes(String(activeChat.id)) ? 'Online' : 'Offline'}
+              </div>
+            </div>
           </div>
-        ) : (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-            {addedUsers.map(person => (
-              <div
-                key={person.id}
-                onClick={() => handleStartChat(person)}
-                style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '12px',
-                  padding: '12px',
-                  background: theme.cardBg,
-                  borderRadius: '12px',
-                  cursor: 'pointer',
-                  border: `1px solid ${theme.border}`
-                }}
-              >
+
+          {/* Messages */}
+          <div style={{ flex: 1, overflowY: 'auto', padding: '16px' }}>
+            {messages.map(msg => (
+              <div key={msg.id} style={{ display: 'flex', justifyContent: msg.sender_id === storedUser.id ? 'flex-end' : 'flex-start', marginBottom: '12px' }}>
                 <div style={{
-                  width: '44px',
-                  height: '44px',
-                  borderRadius: '50%',
-                  background: person.profile_pic ? `url(${person.profile_pic}) center/cover` : getFacultyColor(person.department),
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  color: 'white',
-                  fontWeight: 700,
-                  fontSize: '16px',
-                  flexShrink: 0
+                  maxWidth: '75%',
+                  padding: '10px 14px',
+                  borderRadius: '18px',
+                  borderTopRightRadius: msg.sender_id === storedUser.id ? '4px' : '18px',
+                  borderTopLeftRadius: msg.sender_id === storedUser.id ? '18px' : '4px',
+                  background: msg.sender_id === storedUser.id ? '#FF6B00' : theme.cardBg,
+                  color: msg.sender_id === storedUser.id ? 'white' : theme.text,
+                  fontSize: '14px',
+                  lineHeight: 1.4
                 }}>
-                  {!person.profile_pic && (person.preferred_name || person.full_name || '?').charAt(0)}
+                  {msg.content}
                 </div>
-                <div style={{ flex: 1 }}>
-                  <div style={{ fontWeight: 600, fontSize: '15px', color: theme.text }}>{person.preferred_name || person.full_name}</div>
-                  <div style={{ fontSize: '13px', color: theme.textSecondary }}>{person.department}</div>
-                </div>
-                <SendIcon />
               </div>
             ))}
-          </div>
-        )}
-      </div>
-
-      {/* Meet New People Section */}
-      {showMeetPeople && (
-        <div style={{ borderTop: `1px solid ${theme.border}`, padding: '20px' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '20px' }}>
-            <PlusCircleIcon />
-            <h3 style={{ fontSize: '16px', fontWeight: 700, color: theme.text, margin: 0 }}>Meet New People</h3>
+            <div ref={messagesEndRef} />
           </div>
 
-          {/* Filters */}
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', marginBottom: '20px' }}>
-            {/* Scope */}
-            <div>
-              <label style={{ fontSize: '12px', fontWeight: 600, color: theme.textSecondary, display: 'block', marginBottom: '6px' }}>Where from?</label>
-              <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
-                {scopeOptions.map(opt => (
-                  <button key={opt.value} onClick={() => setFilters(prev => ({ ...prev, scope: opt.value }))} style={{
-                    padding: '6px 12px', borderRadius: '20px', border: filters.scope === opt.value ? 'none' : `1.5px solid ${theme.border}`,
-                    background: filters.scope === opt.value ? '#FF6B00' : 'transparent',
-                    color: filters.scope === opt.value ? 'white' : theme.textSecondary,
-                    fontSize: '12px', fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit'
-                  }}>{opt.label}</button>
-                ))}
-              </div>
-            </div>
-
-            {/* Gender */}
-            <div>
-              <label style={{ fontSize: '12px', fontWeight: 600, color: theme.textSecondary, display: 'block', marginBottom: '6px' }}>Who?</label>
-              <div style={{ display: 'flex', gap: '6px' }}>
-                {genderOptions.map(opt => (
-                  <button key={opt.value} onClick={() => setFilters(prev => ({ ...prev, gender: opt.value }))} style={{
-                    padding: '6px 12px', borderRadius: '20px', border: filters.gender === opt.value ? 'none' : `1.5px solid ${theme.border}`,
-                    background: filters.gender === opt.value ? '#FF6B00' : 'transparent',
-                    color: filters.gender === opt.value ? 'white' : theme.textSecondary,
-                    fontSize: '12px', fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit'
-                  }}>{opt.label}</button>
-                ))}
-              </div>
-            </div>
-
-            {/* Group Size */}
-            <div>
-              <label style={{ fontSize: '12px', fontWeight: 600, color: theme.textSecondary, display: 'block', marginBottom: '6px' }}>How many? ({filters.groupSize})</label>
-              <input
-                type="range"
-                min="1"
-                max="6"
-                value={filters.groupSize}
-                onChange={(e) => setFilters(prev => ({ ...prev, groupSize: parseInt(e.target.value) }))}
-                style={{ width: '100%', accentColor: '#FF6B00' }}
-              />
-            </div>
-
-            <button
-              onClick={handleFindPeople}
-              disabled={loadingPeople}
-              style={{
-                width: '100%',
-                padding: '14px',
-                background: '#FF6B00',
-                color: 'white',
-                border: 'none',
-                borderRadius: '24px',
-                fontSize: '15px',
-                fontWeight: 600,
-                cursor: 'pointer',
-                fontFamily: 'inherit',
-                opacity: loadingPeople ? 0.7 : 1
-              }}
-            >
-              {loadingPeople ? 'Finding people...' : 'Find People'}
+          {/* Input */}
+          <div style={{ padding: '12px 16px', borderTop: `1px solid ${theme.border}`, display: 'flex', gap: '8px', alignItems: 'center' }}>
+            <input
+              type="text"
+              placeholder="Message..."
+              value={chatInput}
+              onChange={(e) => { setChatInput(e.target.value); handleTyping(); }}
+              onKeyDown={(e) => { if (e.key === 'Enter') handleSendMessage(); }}
+              style={{ flex: 1, padding: '12px 16px', borderRadius: '24px', border: `1.5px solid ${theme.border}`, outline: 'none', fontSize: '14px', background: theme.inputBg, color: theme.text, fontFamily: 'inherit' }}
+            />
+            <button onClick={handleSendMessage} disabled={!chatInput.trim()} style={{ background: '#FF6B00', color: 'white', border: 'none', borderRadius: '50%', width: '42px', height: '42px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', opacity: chatInput.trim() ? 1 : 0.5 }}>
+              <SendIcon />
             </button>
           </div>
-
-          {/* Orbiting Matched People */}
-          {matchedPeople.length > 0 && (
-            <div style={{
-              position: 'relative',
-              width: '100%',
-              height: '320px',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              marginTop: '10px'
-            }}>
-              {/* Concentric circles */}
-              <div style={{
-                position: 'absolute',
-                width: '240px',
-                height: '240px',
-                borderRadius: '50%',
-                border: `1px dashed ${theme.border}`,
-                animation: 'spin 30s linear infinite'
-              }} />
-              <div style={{
-                position: 'absolute',
-                width: '180px',
-                height: '180px',
-                borderRadius: '50%',
-                border: `1px dashed ${theme.border}`,
-                animation: 'spin 20s linear infinite reverse'
-              }} />
-
-              {/* Center CTA */}
-              <div style={{
-                zIndex: 2,
-                textAlign: 'center',
-                background: theme.bg,
-                padding: '16px',
-                borderRadius: '50%',
-                width: '100px',
-                height: '100px',
-                display: 'flex',
-                flexDirection: 'column',
-                alignItems: 'center',
-                justifyContent: 'center'
-              }}>
-                <div style={{ fontSize: '13px', fontWeight: 700, color: theme.text }}>Meet</div>
-                <div style={{ fontSize: '11px', color: theme.textSecondary }}>Tap to add</div>
+        </div>
+      ) : (
+        <>
+          {/* People List */}
+          <div style={{ padding: '16px 20px' }}>
+            {addedUsers.length === 0 ? (
+              <div style={{ textAlign: 'center', color: theme.textSecondary, fontSize: '15px', padding: '40px 0' }}>
+                No conversations yet.
+                <br />
+                <span style={{ fontSize: '13px' }}>Use the filter to meet new people!</span>
               </div>
-
-              {/* Orbiting avatars */}
-              {matchedPeople.map((person, i) => {
-                const total = matchedPeople.length;
-                const angle = (i / total) * 2 * Math.PI - Math.PI / 2;
-                const radius = 120;
-                const x = Math.cos(angle) * radius;
-                const y = Math.sin(angle) * radius;
-
-                return (
+            ) : (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                {addedUsers.map(person => (
                   <div
                     key={person.id}
-                    onClick={() => handleAddPerson(person)}
+                    onClick={() => setActiveChat(person)}
                     style={{
-                      position: 'absolute',
-                      transform: `translate(${x}px, ${y}px)`,
-                      cursor: 'pointer',
-                      zIndex: 3,
                       display: 'flex',
-                      flexDirection: 'column',
                       alignItems: 'center',
-                      gap: '4px',
-                      transition: 'transform 0.3s'
+                      gap: '12px',
+                      padding: '12px',
+                      background: theme.cardBg,
+                      borderRadius: '12px',
+                      cursor: 'pointer',
+                      border: `1px solid ${theme.border}`
                     }}
                   >
                     <div style={{
-                      width: '56px',
-                      height: '56px',
+                      width: '44px',
+                      height: '44px',
                       borderRadius: '50%',
                       background: person.profile_pic ? `url(${person.profile_pic}) center/cover` : getFacultyColor(person.department),
                       display: 'flex',
@@ -400,56 +343,97 @@ const Messages = () => {
                       justifyContent: 'center',
                       color: 'white',
                       fontWeight: 700,
-                      fontSize: '20px',
-                      border: `3px solid ${theme.bg}`,
-                      boxShadow: '0 4px 12px rgba(0,0,0,0.15)',
-                      animation: 'float 3s ease-in-out infinite',
-                      animationDelay: `${i * 0.5}s`
+                      fontSize: '16px',
+                      flexShrink: 0,
+                      position: 'relative'
                     }}>
                       {!person.profile_pic && (person.preferred_name || person.full_name || '?').charAt(0)}
-                      <div style={{
-                        position: 'absolute',
-                        bottom: '-2px',
-                        right: '-2px',
-                        width: '20px',
-                        height: '20px',
-                        borderRadius: '50%',
-                        background: '#FF6B00',
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        border: `2px solid ${theme.bg}`
-                      }}>
-                        <span style={{ color: 'white', fontSize: '12px', lineHeight: 1, fontWeight: 700 }}>+</span>
+                      {onlineUsers.includes(String(person.id)) && (
+                        <div style={{ position: 'absolute', bottom: 0, right: 0, width: 12, height: 12, borderRadius: '50%', background: '#16a34a', border: `2px solid ${theme.bg}` }} />
+                      )}
+                    </div>
+                    <div style={{ flex: 1 }}>
+                      <div style={{ fontWeight: 600, fontSize: '15px', color: theme.text }}>{person.preferred_name || person.full_name}</div>
+                      <div style={{ fontSize: '13px', color: onlineUsers.includes(String(person.id)) ? '#16a34a' : theme.textSecondary }}>
+                        {onlineUsers.includes(String(person.id)) ? 'Online' : person.department || 'Offline'}
                       </div>
                     </div>
-                    <span style={{ fontSize: '10px', color: theme.textSecondary, fontWeight: 500, textAlign: 'center', maxWidth: '70px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                      {person.preferred_name || person.full_name}
-                    </span>
                   </div>
-                );
-              })}
+                ))}
+              </div>
+            )}
+          </div>
+
+          {/* Meet People Section */}
+          {showMeetPeople && (
+            <div style={{ borderTop: `1px solid ${theme.border}`, padding: '20px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '20px' }}>
+                <PlusCircleIcon />
+                <h3 style={{ fontSize: '16px', fontWeight: 700, color: theme.text, margin: 0 }}>Meet New People</h3>
+              </div>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', marginBottom: '20px' }}>
+                <div>
+                  <label style={{ fontSize: '12px', fontWeight: 600, color: theme.textSecondary, display: 'block', marginBottom: '6px' }}>Where from?</label>
+                  <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
+                    {scopeOptions.map(opt => (
+                      <button key={opt.value} onClick={() => setMeetFilters(prev => ({ ...prev, scope: opt.value }))} style={{ padding: '6px 12px', borderRadius: '20px', border: meetFilters.scope === opt.value ? 'none' : `1.5px solid ${theme.border}`, background: meetFilters.scope === opt.value ? '#FF6B00' : 'transparent', color: meetFilters.scope === opt.value ? 'white' : theme.textSecondary, fontSize: '12px', fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' }}>{opt.label}</button>
+                    ))}
+                  </div>
+                </div>
+                <div>
+                  <label style={{ fontSize: '12px', fontWeight: 600, color: theme.textSecondary, display: 'block', marginBottom: '6px' }}>Who?</label>
+                  <div style={{ display: 'flex', gap: '6px' }}>
+                    {genderOptions.map(opt => (
+                      <button key={opt.value} onClick={() => setMeetFilters(prev => ({ ...prev, gender: opt.value }))} style={{ padding: '6px 12px', borderRadius: '20px', border: meetFilters.gender === opt.value ? 'none' : `1.5px solid ${theme.border}`, background: meetFilters.gender === opt.value ? '#FF6B00' : 'transparent', color: meetFilters.gender === opt.value ? 'white' : theme.textSecondary, fontSize: '12px', fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' }}>{opt.label}</button>
+                    ))}
+                  </div>
+                </div>
+                <div>
+                  <label style={{ fontSize: '12px', fontWeight: 600, color: theme.textSecondary, display: 'block', marginBottom: '6px' }}>How many? ({meetFilters.groupSize})</label>
+                  <input type="range" min="1" max="6" value={meetFilters.groupSize} onChange={e => setMeetFilters(prev => ({ ...prev, groupSize: parseInt(e.target.value) }))} style={{ width: '100%', accentColor: '#FF6B00' }} />
+                </div>
+                <button onClick={handleFindPeople} disabled={loadingPeople} style={{ width: '100%', padding: '14px', background: '#FF6B00', color: 'white', border: 'none', borderRadius: '24px', fontSize: '15px', fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit', opacity: loadingPeople ? 0.7 : 1 }}>{loadingPeople ? 'Finding people...' : 'Find People'}</button>
+              </div>
+              {matchedPeople.length > 0 && (
+                <div style={{ position: 'relative', width: '100%', height: '300px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                  <div style={{ position: 'absolute', width: '220px', height: '220px', borderRadius: '50%', border: `1px dashed ${theme.border}`, animation: 'spin 30s linear infinite' }} />
+                  <div style={{ position: 'absolute', width: '160px', height: '160px', borderRadius: '50%', border: `1px dashed ${theme.border}`, animation: 'spin 20s linear infinite reverse' }} />
+                  <div style={{ zIndex: 2, textAlign: 'center', background: theme.bg, padding: '16px', borderRadius: '50%', width: '90px', height: '90px', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center' }}>
+                    <div style={{ fontSize: '13px', fontWeight: 700, color: theme.text }}>Meet</div>
+                    <div style={{ fontSize: '11px', color: theme.textSecondary }}>Tap +</div>
+                  </div>
+                  {matchedPeople.map((person, i) => {
+                    const total = matchedPeople.length;
+                    const angle = (i / total) * 2 * Math.PI - Math.PI / 2;
+                    const radius = 110;
+                    const x = Math.cos(angle) * radius;
+                    const y = Math.sin(angle) * radius;
+                    return (
+                      <div key={person.id} onClick={() => handleAddPerson(person)} style={{ position: 'absolute', transform: `translate(${x}px, ${y}px)`, cursor: 'pointer', zIndex: 3, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4 }}>
+                        <div style={{ width: '52px', height: '52px', borderRadius: '50%', background: person.profile_pic ? `url(${person.profile_pic}) center/cover` : getFacultyColor(person.department), display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'white', fontWeight: 700, fontSize: '18px', border: `3px solid ${theme.bg}`, boxShadow: '0 4px 12px rgba(0,0,0,0.15)', animation: 'float 3s ease-in-out infinite', animationDelay: `${i * 0.5}s`, position: 'relative' }}>
+                          {!person.profile_pic && (person.preferred_name || person.full_name || '?').charAt(0)}
+                          <div style={{ position: 'absolute', bottom: '-3px', right: '-3px', width: '20px', height: '20px', borderRadius: '50%', background: '#FF6B00', display: 'flex', alignItems: 'center', justifyContent: 'center', border: `2px solid ${theme.bg}` }}><span style={{ color: 'white', fontSize: '12px', lineHeight: 1, fontWeight: 700 }}>+</span></div>
+                        </div>
+                        <span style={{ fontSize: '10px', color: theme.textSecondary, fontWeight: 500, maxWidth: '60px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', textAlign: 'center' }}>{person.preferred_name || person.full_name}</span>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
             </div>
           )}
-        </div>
+        </>
       )}
-
-      {/* Animation styles */}
-      <style>{`
-        @keyframes spin {
-          from { transform: rotate(0deg); }
-          to { transform: rotate(360deg); }
-        }
-        @keyframes float {
-          0%, 100% { transform: translateY(0px); }
-          50% { transform: translateY(-8px); }
-        }
-      `}</style>
 
       {/* Bottom Navigation */}
       <div style={{ position: 'fixed', bottom: 0, left: '50%', transform: 'translateX(-50%)', width: '100%', maxWidth: 600, background: theme.bg, borderTop: `1px solid ${theme.border}`, display: 'flex', justifyContent: 'space-around', padding: '8px 0', zIndex: 100, paddingBottom: 'max(8px, env(safe-area-inset-bottom))' }}>
         {tabs.map(tab => { const Icon = tab.icon; const isActive = (tab.id === 'messages'); return (<button key={tab.id} onClick={() => handleTabClick(tab.id)} style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '8px 16px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4, color: isActive ? '#FF6B00' : theme.textSecondary, fontFamily: 'inherit', transition: 'color 0.2s' }}><Icon /><span style={{ fontSize: 10, fontWeight: isActive ? 600 : 400 }}>{tab.label}</span></button>); })}
       </div>
+
+      <style>{`
+        @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+        @keyframes float { 0%, 100% { transform: translateY(0px); } 50% { transform: translateY(-8px); } }
+      `}</style>
     </div>
   );
 };
