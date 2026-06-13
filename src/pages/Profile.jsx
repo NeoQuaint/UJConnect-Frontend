@@ -18,12 +18,6 @@ const HomeIcon = () => (
   </svg>
 );
 
-const ProjectsIcon = () => (
-  <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-    <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/>
-  </svg>
-);
-
 const CommunitiesIcon = () => (
   <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
     <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/>
@@ -33,15 +27,10 @@ const CommunitiesIcon = () => (
   </svg>
 );
 
-const ForumsIcon = () => (
+const ProfileIcon = () => (
   <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-    <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
-  </svg>
-);
-
-const MessagesIcon = () => (
-  <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-    <path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"/>
+    <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/>
+    <circle cx="12" cy="7" r="4"/>
   </svg>
 );
 
@@ -190,7 +179,7 @@ const Profile = () => {
   const [editing, setEditing] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
-  const [darkMode, setDarkMode] = useState(false);
+  const [darkMode, setDarkMode] = useState(true);
   const [avatarPreview, setAvatarPreview] = useState(false);
   const [coverPreview, setCoverPreview] = useState(false);
   const [userPosts, setUserPosts] = useState([]);
@@ -200,23 +189,19 @@ const Profile = () => {
   const [fullImage, setFullImage] = useState(null);
   const [profileSection, setProfileSection] = useState('posts');
 
-  // Avatar tap menu
   const [showAvatarMenu, setShowAvatarMenu] = useState(false);
   const [showStoryViewer, setShowStoryViewer] = useState(false);
   const [storyViewerIndex, setStoryViewerIndex] = useState(0);
 
-  // Highlight viewer
   const [viewingHighlight, setViewingHighlight] = useState(null);
   const [highlightStoryIndex, setHighlightStoryIndex] = useState(0);
 
-  // Highlight create
   const [showHighlightCreate, setShowHighlightCreate] = useState(false);
   const [highlightFile, setHighlightFile] = useState(null);
   const [highlightPreview, setHighlightPreview] = useState(null);
   const [highlightTitle, setHighlightTitle] = useState('');
   const [creatingHighlight, setCreatingHighlight] = useState(false);
 
-  // Badge create
   const [showBadgeModal, setShowBadgeModal] = useState(false);
   const [badgeTitle, setBadgeTitle] = useState('');
   const [badgeDescription, setBadgeDescription] = useState('');
@@ -247,7 +232,7 @@ const Profile = () => {
     cover_photo: '', profile_pic: '',
     cover_position_x: '50', cover_position_y: '50', cover_zoom: '1',
     profile_position_x: '50', profile_position_y: '50', profile_zoom: '1',
-    dark_mode: 'false', tiktok: '', instagram: '', facebook: '', youtube: '', linkedin: ''
+    dark_mode: 'true', tiktok: '', instagram: '', facebook: '', youtube: '', linkedin: ''
   });
 
   const departments = [
@@ -299,7 +284,7 @@ const Profile = () => {
       const id = isOwner ? currentUser.id : userId;
       const { data } = await axios.get(`${API_URL}/api/users/${id}`);
       setUser(data);
-      setDarkMode(data.dark_mode === 'true');
+      setDarkMode(data.dark_mode === 'true' || data.dark_mode === true || data.dark_mode === null);
       setForm({
         full_name: data.full_name || '', preferred_name: data.preferred_name || '',
         department: data.department || '', course: data.course || '', year: data.year || '',
@@ -308,7 +293,7 @@ const Profile = () => {
         cover_position_x: data.cover_position_x || '50', cover_position_y: data.cover_position_y || '50',
         cover_zoom: data.cover_zoom || '1',
         profile_position_x: data.profile_position_x || '50', profile_position_y: data.profile_position_y || '50',
-        profile_zoom: data.profile_zoom || '1', dark_mode: data.dark_mode || 'false',
+        profile_zoom: data.profile_zoom || '1', dark_mode: data.dark_mode || 'true',
         tiktok: data.tiktok || '', instagram: data.instagram || '',
         facebook: data.facebook || '', youtube: data.youtube || '', linkedin: data.linkedin || ''
       });
@@ -325,8 +310,12 @@ const Profile = () => {
     } catch (err) { setError('Could not load profile'); } finally { setLoading(false); }
   };
 
+  // Fetch only profile-scoped posts (not feed posts)
   const fetchUserPosts = async (uid) => {
-    try { const { data } = await axios.get(`${API_URL}/api/posts?user_id=${uid}`); setUserPosts(data || []); } catch (err) {}
+    try { 
+      const { data } = await axios.get(`${API_URL}/api/posts?user_id=${uid}&scope=profile`); 
+      setUserPosts(data || []); 
+    } catch (err) {}
   };
 
   const fetchUserStories = async (uid) => {
@@ -403,6 +392,16 @@ const Profile = () => {
     try { const { data } = await axios.post(`${API_URL}/api/posts/${postId}/like`, { user_id: currentUser.id }); setUserPosts(prev => prev.map(p => p.id === postId ? { ...p, likes_count: data.liked ? p.likes_count + 1 : p.likes_count - 1 } : p)); } catch (err) {}
   };
 
+  // Dark mode toggle - saves to DB
+  const toggleDarkMode = async () => {
+    const newValue = !darkMode;
+    setDarkMode(newValue);
+    localStorage.setItem('ujconnect_dark_mode', newValue ? 'true' : 'false');
+    try {
+      await axios.put(`${API_URL}/api/users/${currentUser.id}/dark-mode`, { dark_mode: newValue ? 'true' : 'false' });
+    } catch (err) {}
+  };
+
   const handleSave = async () => {
     setSaving(true); setError('');
     try {
@@ -425,10 +424,22 @@ const Profile = () => {
     const fd = new FormData(); fd.append('file', file);
     try { const { data } = await axios.post(`${API_URL}/api/upload`, fd); setPostMedia(prev => [...prev, data.url]); } catch (err) { setError('Failed to upload media'); }
   };
+  // Create post as profile scope
   const handleCreatePost = async () => {
     if (!postContent.trim() && postMedia.length === 0) return;
     setPosting(true);
-    try { const { data } = await axios.post(`${API_URL}/api/posts`, { user_id: currentUser.id, content: postContent, media_url: postMedia[0] || null, media_type: postMedia.length > 0 ? 'image' : null, post_type: postTag || 'post' }); setUserPosts(prev => [data, ...prev]); setPostContent(''); setPostMedia([]); setPostTag(null); setShowComposer(false); } catch (err) { setError('Failed to create post'); } finally { setPosting(false); }
+    try { 
+      const { data } = await axios.post(`${API_URL}/api/posts`, { 
+        user_id: currentUser.id, 
+        content: postContent, 
+        media_url: postMedia[0] || null, 
+        media_type: postMedia.length > 0 ? 'image' : null, 
+        post_type: postTag || 'post',
+        post_scope: 'profile' 
+      }); 
+      setUserPosts(prev => [data, ...prev]); 
+      setPostContent(''); setPostMedia([]); setPostTag(null); setShowComposer(false); 
+    } catch (err) { setError('Failed to create post'); } finally { setPosting(false); }
   };
 
   const handleCoverDragStart = (e) => {
@@ -459,13 +470,10 @@ const Profile = () => {
   const getShieldColor = (year) => year === 'Post Grad' ? '#D4AF37' : '#C0C0C0';
 
   const tabs = [
-    { id: 'home', icon: HomeIcon, label: 'Home' },
-    { id: 'projects', icon: ProjectsIcon, label: 'Projects' },
-    { id: 'communities', icon: CommunitiesIcon, label: 'Communities' },
-    { id: 'forums', icon: ForumsIcon, label: 'Forums' },
-    { id: 'messages', icon: MessagesIcon, label: 'Messages' },
+    { id: 'home', icon: HomeIcon, label: 'Home', route: '/dashboard' },
+    { id: 'communities', icon: CommunitiesIcon, label: 'Community', route: '/communities' },
+    { id: 'profile', icon: ProfileIcon, label: 'Profile', route: null },
   ];
-  const handleTabClick = (tabId) => { if (tabId === 'home') navigate('/dashboard'); };
 
   const theme = {
     bg: darkMode ? '#000' : '#fff', text: darkMode ? '#fff' : '#1a1a1a',
@@ -490,7 +498,7 @@ const Profile = () => {
     <div style={{ minHeight: '100vh', background: theme.bg, fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif', maxWidth: '600px', margin: '0 auto', position: 'relative', paddingBottom: '80px' }}>
 
       {/* COVER PHOTO */}
-      <div ref={coverRef} style={{ width: '100%', height: '160px', background: currentCover ? `url(${currentCover})` : 'linear-gradient(135deg, #e8e8e8, #d5d5d5)', backgroundPosition: currentCover ? `${coverPosX}% ${coverPosY}%` : 'center', backgroundSize: currentCover ? `${coverZoom * 100}%` : 'cover', backgroundRepeat: 'no-repeat', position: 'relative', overflow: 'hidden', cursor: !editing && currentCover ? 'pointer' : editing && currentCover ? (draggingCover ? 'grabbing' : 'grab') : 'default' }}
+      <div ref={coverRef} style={{ width: '100%', height: '160px', background: currentCover ? `url(${currentCover})` : 'linear-gradient(135deg, #333, #222)', backgroundPosition: currentCover ? `${coverPosX}% ${coverPosY}%` : 'center', backgroundSize: currentCover ? `${coverZoom * 100}%` : 'cover', backgroundRepeat: 'no-repeat', position: 'relative', overflow: 'hidden', cursor: !editing && currentCover ? 'pointer' : editing && currentCover ? (draggingCover ? 'grabbing' : 'grab') : 'default' }}
         onMouseDown={editing && currentCover ? handleCoverDragStart : undefined} onTouchStart={editing && currentCover ? handleCoverDragStart : undefined}
         onClick={() => { if (!editing && currentCover) setCoverPreview(true); }}>
         {editing && currentCover && (
@@ -677,7 +685,7 @@ const Profile = () => {
             {composerTab === 'project' && (
               <div style={{ padding: '24px', textAlign: 'center' }}>
                 <h3 style={{ fontSize: '18px', fontWeight: 700, color: theme.text, marginBottom: '16px' }}>Start a Project</h3>
-                <button onClick={() => { setShowComposer(false); navigate('/projects'); }} style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', padding: '14px 28px', background: '#FF6B00', color: 'white', border: 'none', borderRadius: '24px', fontSize: '15px', fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit', marginBottom: '16px' }}><SmallPlusIcon /> Start a Project</button>
+                <button onClick={() => { setShowComposer(false); navigate('/communities'); }} style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', padding: '14px 28px', background: '#FF6B00', color: 'white', border: 'none', borderRadius: '24px', fontSize: '15px', fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit', marginBottom: '16px' }}><SmallPlusIcon /> Start a Project</button>
                 <p style={{ color: theme.textSecondary, fontSize: '13px' }}>Create a project, add members, share links</p>
               </div>
             )}
@@ -694,7 +702,6 @@ const Profile = () => {
 
       {/* PROFILE CONTENT */}
       <div style={{ padding: '0 20px', position: 'relative' }}>
-        {/* Avatar with story ring */}
         <div style={{ width: '96px', height: '96px', borderRadius: '50%', padding: hasStories ? '3px' : '0', background: hasStories ? getFacultyGradient(user?.department) : 'transparent', display: 'flex', alignItems: 'center', justifyContent: 'center', marginTop: '-48px', position: 'relative', zIndex: 5 }}>
           <div onClick={() => { if (!editing) setShowAvatarMenu(true); }} style={{ width: hasStories ? '90px' : '96px', height: hasStories ? '90px' : '96px', borderRadius: '50%', overflow: 'hidden', cursor: !editing ? 'pointer' : 'default', background: currentAvatar ? `url(${currentAvatar})` : 'linear-gradient(135deg, #FF6B00, #FF8C42)', backgroundPosition: currentAvatar ? `${avatarPosX}% ${avatarPosY}%` : 'center', backgroundSize: currentAvatar ? `${avatarZoom * 100}%` : 'cover', backgroundRepeat: 'no-repeat', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'white', fontWeight: 700, fontSize: '38px', border: `4px solid ${theme.bg}` }}>
             {!currentAvatar && displayName.charAt(0)}
@@ -703,23 +710,19 @@ const Profile = () => {
           </div>
         </div>
 
-        {/* Edit profile button */}
         {isOwner && !editing && (
           <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '-40px', marginBottom: '0px' }}>
             <button onClick={() => setEditing(true)} style={{ background: 'none', border: `1.5px solid ${theme.border}`, padding: '6px 16px', borderRadius: '20px', fontSize: '13px', fontWeight: 600, color: theme.textSecondary, cursor: 'pointer', fontFamily: 'inherit' }}>Edit profile</button>
           </div>
         )}
 
-        {/* Name + Shield */}
         <div style={{ marginTop: isOwner && !editing ? '8px' : '12px', marginBottom: '16px' }}>
           <h2 style={{ fontSize: '20px', fontWeight: 700, margin: '0 0 2px', display: 'flex', alignItems: 'center', gap: '8px', color: theme.text }}>{displayName}{user?.year && <ShieldIcon year={user.year} size={22} color={getShieldColor(user.year)} />}</h2>
           {user?.preferred_name && user?.full_name && <p style={{ fontSize: '14px', color: theme.textSecondary, margin: '0 0 8px' }}>{user.full_name}</p>}
         </div>
 
-        {/* Bio */}
         {user?.bio && !editing && <p style={{ fontSize: '14px', lineHeight: 1.5, color: darkMode ? '#aaa' : '#555', marginBottom: '20px' }}>{user.bio}</p>}
 
-        {/* Social Links */}
         {hasSocialLinks && !editing && (
           <div style={{ display: 'flex', gap: '12px', marginBottom: '16px', flexWrap: 'wrap' }}>
             {socialLinks.map(s => user?.[s.key] && (
@@ -728,13 +731,11 @@ const Profile = () => {
           </div>
         )}
 
-        {/* Department + Course tags */}
         <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px', marginBottom: '20px' }}>
           {user?.department && <span style={{ background: theme.cardBg, padding: '6px 14px', borderRadius: '20px', fontSize: '14px', color: theme.textSecondary, fontWeight: 500 }}>{user.department}</span>}
           {user?.course && <span style={{ background: theme.cardBg, padding: '5px 12px', borderRadius: '20px', fontSize: '11px', color: theme.textSecondary, fontWeight: 400 }}>{user.course}</span>}
         </div>
 
-        {/* Skills */}
         {user?.skills && user.skills.length > 0 && (
           <div style={{ marginBottom: '24px' }}>
             <h3 style={{ fontSize: '14px', fontWeight: 700, color: theme.text, marginBottom: '10px' }}>Skills</h3>
@@ -744,7 +745,6 @@ const Profile = () => {
           </div>
         )}
 
-        {/* Achievements Badges */}
         <div style={{ marginBottom: '20px' }}>
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '10px' }}>
             <h3 style={{ fontSize: '14px', fontWeight: 700, color: theme.text, margin: 0 }}>Achievements</h3>
@@ -772,7 +772,6 @@ const Profile = () => {
           </div>
         </div>
 
-        {/* Highlights Section */}
         <div style={{ marginBottom: '20px' }}>
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '10px' }}>
             <h3 style={{ fontSize: '14px', fontWeight: 700, color: theme.text, margin: 0 }}>Highlights</h3>
@@ -811,7 +810,7 @@ const Profile = () => {
           <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px 0', borderBottom: `1px solid ${theme.border}` }}>
               <span style={{ fontSize: '14px', fontWeight: 600, color: theme.text }}>Dark mode</span>
-              <button onClick={() => setDarkMode(!darkMode)} style={{ width: '48px', height: '26px', borderRadius: '13px', background: darkMode ? '#FF6B00' : '#d1d5db', border: 'none', cursor: 'pointer', position: 'relative', transition: 'background 0.3s', padding: 0 }}><span style={{ position: 'absolute', top: '3px', left: darkMode ? '25px' : '3px', width: '20px', height: '20px', borderRadius: '50%', background: 'white', transition: 'left 0.3s', boxShadow: '0 1px 3px rgba(0,0,0,0.2)' }} /></button>
+              <button onClick={toggleDarkMode} style={{ width: '48px', height: '26px', borderRadius: '13px', background: darkMode ? '#FF6B00' : '#d1d5db', border: 'none', cursor: 'pointer', position: 'relative', transition: 'background 0.3s', padding: 0 }}><span style={{ position: 'absolute', top: '3px', left: darkMode ? '25px' : '3px', width: '20px', height: '20px', borderRadius: '50%', background: 'white', transition: 'left 0.3s', boxShadow: '0 1px 3px rgba(0,0,0,0.2)' }} /></button>
             </div>
             <div><label style={{ fontSize: '12px', fontWeight: 600, color: theme.textSecondary, display: 'block', marginBottom: '4px' }}>Full Name (optional)</label><input type="text" name="full_name" value={form.full_name} onChange={handleChange} placeholder="Your legal name" style={{ width: '100%', padding: '12px 14px', border: `1.5px solid ${theme.inputBorder}`, borderRadius: '10px', fontSize: '14px', fontFamily: 'inherit', boxSizing: 'border-box', background: theme.inputBg, color: theme.text }} /></div>
             <div><label style={{ fontSize: '12px', fontWeight: 600, color: theme.textSecondary, display: 'block', marginBottom: '4px' }}>Preferred Name</label><input type="text" name="preferred_name" value={form.preferred_name} onChange={handleChange} placeholder="What should we call you?" style={{ width: '100%', padding: '12px 14px', border: `1.5px solid ${theme.inputBorder}`, borderRadius: '10px', fontSize: '14px', fontFamily: 'inherit', boxSizing: 'border-box', background: theme.inputBg, color: theme.text }} /></div>
@@ -822,13 +821,12 @@ const Profile = () => {
             <div><label style={{ fontSize: '12px', fontWeight: 600, color: theme.textSecondary, display: 'block', marginBottom: '4px' }}>Skills</label><input type="text" name="skills" value={form.skills} onChange={handleChange} placeholder="HTML, CSS, React, Python" style={{ width: '100%', padding: '12px 14px', border: `1.5px solid ${theme.inputBorder}`, borderRadius: '10px', fontSize: '14px', fontFamily: 'inherit', boxSizing: 'border-box', background: theme.inputBg, color: theme.text }} /><p style={{ fontSize: '11px', color: '#aaa', marginTop: '4px' }}>Separate with commas</p></div>
             <div style={{ borderTop: `1px solid ${theme.border}`, paddingTop: '12px' }}><p style={{ fontSize: '12px', fontWeight: 600, color: theme.textSecondary, marginBottom: '12px' }}>Social Links (optional)</p>{socialLinks.map(s => (<div key={s.key} style={{ marginBottom: '10px' }}><label style={{ fontSize: '12px', fontWeight: 500, color: theme.textSecondary, display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '4px' }}><s.icon /> {s.label}</label><input type="url" name={s.key} value={form[s.key]} onChange={handleChange} placeholder={`Your ${s.label} URL`} style={{ width: '100%', padding: '12px 14px', border: `1.5px solid ${theme.inputBorder}`, borderRadius: '10px', fontSize: '14px', fontFamily: 'inherit', boxSizing: 'border-box', background: theme.inputBg, color: theme.text }} /></div>))}</div>
             <div style={{ display: 'flex', gap: '10px', marginTop: '8px' }}>
-              <button onClick={() => { setEditing(false); setForm(prev => ({ ...prev, full_name: user.full_name || '', preferred_name: user.preferred_name || '', department: user.department || '', course: user.course || '', year: user.year || '', bio: user.bio || '', skills: user.skills ? user.skills.join(', ') : '', cover_photo: user.cover_photo || '', profile_pic: user.profile_pic || '', cover_position_x: user.cover_position_x || '50', cover_position_y: user.cover_position_y || '50', cover_zoom: user.cover_zoom || '1', profile_position_x: user.profile_position_x || '50', profile_position_y: user.profile_position_y || '50', profile_zoom: user.profile_zoom || '1', dark_mode: user.dark_mode || 'false', tiktok: user.tiktok || '', instagram: user.instagram || '', facebook: user.facebook || '', youtube: user.youtube || '', linkedin: user.linkedin || '' })); setDarkMode(user.dark_mode === 'true'); setShowAvatarEditor(false); }} style={{ flex: 1, padding: '13px', background: theme.cardBg, border: 'none', borderRadius: '12px', fontSize: '14px', fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit', color: theme.textSecondary }}>Cancel</button>
+              <button onClick={() => { setEditing(false); setForm(prev => ({ ...prev, full_name: user.full_name || '', preferred_name: user.preferred_name || '', department: user.department || '', course: user.course || '', year: user.year || '', bio: user.bio || '', skills: user.skills ? user.skills.join(', ') : '', cover_photo: user.cover_photo || '', profile_pic: user.profile_pic || '', cover_position_x: user.cover_position_x || '50', cover_position_y: user.cover_position_y || '50', cover_zoom: user.cover_zoom || '1', profile_position_x: user.profile_position_x || '50', profile_position_y: user.profile_position_y || '50', profile_zoom: user.profile_zoom || '1', dark_mode: user.dark_mode || 'true', tiktok: user.tiktok || '', instagram: user.instagram || '', facebook: user.facebook || '', youtube: user.youtube || '', linkedin: user.linkedin || '' })); setDarkMode(user.dark_mode === 'true' || user.dark_mode === true || user.dark_mode === null); setShowAvatarEditor(false); }} style={{ flex: 1, padding: '13px', background: theme.cardBg, border: 'none', borderRadius: '12px', fontSize: '14px', fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit', color: theme.textSecondary }}>Cancel</button>
               <button onClick={handleSave} disabled={saving} style={{ flex: 1, padding: '13px', background: '#FF6B00', color: 'white', border: 'none', borderRadius: '12px', fontSize: '14px', fontWeight: 600, cursor: saving ? 'not-allowed' : 'pointer', fontFamily: 'inherit', opacity: saving ? 0.7 : 1 }}>{saving ? 'Saving...' : 'Save'}</button>
             </div>
           </div>
         ) : (
           <>
-            {/* Section Tabs */}
             <div style={{ borderTop: `1px solid ${theme.border}`, paddingTop: '20px', marginTop: '10px' }}>
               <div style={{ display: 'flex', justifyContent: 'space-around', position: 'relative', marginBottom: '20px' }}>
                 <button onClick={() => setProfileSection('posts')} style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '0 0 8px 0', fontFamily: 'inherit', position: 'relative', textAlign: 'center' }}>
@@ -836,7 +834,7 @@ const Profile = () => {
                   <span style={{ color: profileSection === 'posts' ? '#FF6B00' : theme.textSecondary, fontSize: '12px', fontWeight: profileSection === 'posts' ? 600 : 400 }}>Posts</span>
                   {profileSection === 'posts' && <div style={{ position: 'absolute', bottom: 0, left: '10%', right: '10%', height: '2px', background: '#FF6B00', borderRadius: '1px' }} />}
                 </button>
-                <button onClick={() => { setProfileSection('projects'); navigate('/projects'); }} style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '0 0 8px 0', fontFamily: 'inherit', position: 'relative', textAlign: 'center' }}>
+                <button onClick={() => { setProfileSection('projects'); navigate('/communities'); }} style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '0 0 8px 0', fontFamily: 'inherit', position: 'relative', textAlign: 'center' }}>
                   <strong style={{ color: profileSection === 'projects' ? '#FF6B00' : theme.text, display: 'block', fontSize: '16px' }}>0</strong>
                   <span style={{ color: profileSection === 'projects' ? '#FF6B00' : theme.textSecondary, fontSize: '12px', fontWeight: profileSection === 'projects' ? 600 : 400 }}>Projects</span>
                   {profileSection === 'projects' && <div style={{ position: 'absolute', bottom: 0, left: '10%', right: '10%', height: '2px', background: '#FF6B00', borderRadius: '1px' }} />}
@@ -889,7 +887,7 @@ const Profile = () => {
 
       {/* Bottom Navigation */}
       <div style={{ position: 'fixed', bottom: 0, left: '50%', transform: 'translateX(-50%)', width: '100%', maxWidth: '600px', background: theme.bg, borderTop: `1px solid ${theme.border}`, display: 'flex', justifyContent: 'space-around', padding: '8px 0', zIndex: 100, paddingBottom: 'max(8px, env(safe-area-inset-bottom))' }}>
-        {tabs.map(tab => { const Icon = tab.icon; const isActive = (tab.id === 'home' && location.pathname === '/dashboard'); return <button key={tab.id} onClick={() => handleTabClick(tab.id)} style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '8px 16px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '4px', color: isActive ? '#FF6B00' : theme.textSecondary, fontFamily: 'inherit', transition: 'color 0.2s' }}><Icon /><span style={{ fontSize: '10px', fontWeight: isActive ? 600 : 400 }}>{tab.label}</span></button>; })}
+        {tabs.map(tab => { const Icon = tab.icon; const isActive = (tab.id === 'profile'); return (<button key={tab.id} onClick={() => tab.route ? navigate(tab.route) : null} style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '8px 20px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '4px', color: isActive ? '#FF6B00' : theme.textSecondary, fontFamily: 'inherit', transition: 'color 0.2s' }}><Icon /><span style={{ fontSize: '10px', fontWeight: isActive ? 600 : 400 }}>{tab.label}</span></button>); })}
       </div>
     </div>
   );

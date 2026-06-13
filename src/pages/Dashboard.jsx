@@ -11,12 +11,6 @@ const HomeIcon = () => (
   </svg>
 );
 
-const ProjectsIcon = () => (
-  <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-    <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/>
-  </svg>
-);
-
 const CommunitiesIcon = () => (
   <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
     <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/>
@@ -26,15 +20,18 @@ const CommunitiesIcon = () => (
   </svg>
 );
 
-const ForumsIcon = () => (
+const ProfileIcon = () => (
   <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-    <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
+    <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/>
+    <circle cx="12" cy="7" r="4"/>
   </svg>
 );
 
-const MessagesIcon = () => (
-  <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-    <path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"/>
+const MenuIcon = () => (
+  <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+    <line x1="3" y1="6" x2="21" y2="6"/>
+    <line x1="3" y1="12" x2="21" y2="12"/>
+    <line x1="3" y1="18" x2="21" y2="18"/>
   </svg>
 );
 
@@ -144,6 +141,29 @@ const ConnectLogo = () => (
   </svg>
 );
 
+const ShopIcon = () => (
+  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+    <path d="M6 2L3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4z"/>
+    <line x1="3" y1="6" x2="21" y2="6"/>
+    <path d="M16 10a4 4 0 0 1-8 0"/>
+  </svg>
+);
+
+const SmartclassIcon = () => (
+  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+    <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/>
+    <path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/>
+  </svg>
+);
+
+const LogoutIcon = () => (
+  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+    <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/>
+    <polyline points="16 17 21 12 16 7"/>
+    <line x1="21" y1="12" x2="9" y2="12"/>
+  </svg>
+);
+
 const Dashboard = () => {
   const navigate = useNavigate();
   const storedUser = JSON.parse(localStorage.getItem('ujconnect_user') || '{}');
@@ -188,36 +208,92 @@ const Dashboard = () => {
   const [loadingPeople, setLoadingPeople] = useState(false);
   const [addedUsers, setAddedUsers] = useState([]);
 
-  // Search
   const [searchQuery, setSearchQuery] = useState('');
   const [searchResults, setSearchResults] = useState({ users: [], posts: [] });
   const [showSearchResults, setShowSearchResults] = useState(false);
 
+  const [showSidebar, setShowSidebar] = useState(false);
+
   const progressTimerRef = useRef(null);
   const videoRef = useRef(null);
-  const [darkMode, setDarkMode] = useState(() => localStorage.getItem('ujconnect_dark_mode') === 'true');
+  
+  // Dark mode - default true, loaded from DB
+  const [darkMode, setDarkMode] = useState(true);
 
   useEffect(() => {
     fetchPosts(); fetchUserProfile(); fetchStories();
-    const onStorage = () => setDarkMode(localStorage.getItem('ujconnect_dark_mode') === 'true');
-    window.addEventListener('storage', onStorage);
-    return () => { window.removeEventListener('storage', onStorage); clearProgressTimer(); };
+    window.addEventListener('storage', onStorageChange);
+    return () => { window.removeEventListener('storage', onStorageChange); clearProgressTimer(); };
   }, []);
 
-  useEffect(() => { localStorage.setItem('ujconnect_dark_mode', darkMode ? 'true' : 'false'); window.dispatchEvent(new Event('storage')); }, [darkMode]);
+  const onStorageChange = () => {
+    const saved = localStorage.getItem('ujconnect_dark_mode');
+    if (saved !== null) setDarkMode(saved === 'true');
+  };
+
   useEffect(() => { localStorage.setItem('ujconnect_viewed_stories', JSON.stringify(viewedStories)); }, [viewedStories]);
   useEffect(() => { if (videoRef.current) { if (isStoryPaused) videoRef.current.pause(); else videoRef.current.play().catch(() => {}); } }, [isStoryPaused]);
 
   const clearProgressTimer = () => { if (progressTimerRef.current) { clearInterval(progressTimerRef.current); progressTimerRef.current = null; } };
 
-  const fetchUserProfile = async () => { try { const { data } = await axios.get(`${API_URL}/api/users/${storedUser.id}`); setUser(data); localStorage.setItem('ujconnect_user', JSON.stringify(data)); } catch (err) {} };
-  const fetchPosts = async () => { try { const { data } = await axios.get(`${API_URL}/api/posts`); setPosts(data || []); } catch (err) {} finally { setLoading(false); } };
+  // Fetch user profile and load dark mode from DB
+  const fetchUserProfile = async () => { 
+    try { 
+      const { data } = await axios.get(`${API_URL}/api/users/${storedUser.id}`); 
+      setUser(data); 
+      localStorage.setItem('ujconnect_user', JSON.stringify(data));
+      // Load dark mode from DB
+      const dbDarkMode = data.dark_mode;
+      if (dbDarkMode !== null && dbDarkMode !== undefined) {
+        const isDark = dbDarkMode === 'true' || dbDarkMode === true;
+        setDarkMode(isDark);
+        localStorage.setItem('ujconnect_dark_mode', isDark ? 'true' : 'false');
+      }
+    } catch (err) {
+      // Fallback to localStorage
+      const saved = localStorage.getItem('ujconnect_dark_mode');
+      setDarkMode(saved !== null ? saved === 'true' : true);
+    }
+  };
+  
+  // Fetch only feed posts
+  const fetchPosts = async () => { 
+    try { 
+      const { data } = await axios.get(`${API_URL}/api/posts?type=feed`); 
+      setPosts(data || []); 
+    } catch (err) {} finally { 
+      setLoading(false); 
+    } 
+  };
+  
   const fetchStories = async () => { try { const { data } = await axios.get(`${API_URL}/api/stories`); setStoriesList(data || []); } catch (err) {} };
   const fetchComments = async (postId) => { try { const { data } = await axios.get(`${API_URL}/api/comments/${postId}`); setComments(data); } catch (err) {} };
   const fetchStoryComments = async (storyId) => { try { const { data } = await axios.get(`${API_URL}/api/comments/${storyId}`); setStoryComments(data || []); } catch (err) {} };
 
   const handlePostMediaUpload = async (file) => { if (!file) return; const fd = new FormData(); fd.append('file', file); try { const { data } = await axios.post(`${API_URL}/api/upload`, fd); setPostMedia(prev => [...prev, data.url]); } catch (err) {} };
-  const handleCreatePost = async () => { if (!postContent.trim() && postMedia.length === 0) return; setPosting(true); try { const { data } = await axios.post(`${API_URL}/api/posts`, { user_id: user.id, content: postContent, media_url: postMedia[0] || null, media_type: postMedia.length > 0 ? 'image' : null, post_type: postTag || 'post' }); setPosts(prev => [data, ...prev]); setPostContent(''); setPostMedia([]); setPostTag(null); setShowComposer(false); } catch (err) {} finally { setPosting(false); } };
+  
+  const handleCreatePost = async () => { 
+    if (!postContent.trim() && postMedia.length === 0) return; 
+    setPosting(true); 
+    try { 
+      const { data } = await axios.post(`${API_URL}/api/posts`, { 
+        user_id: user.id, 
+        content: postContent, 
+        media_url: postMedia[0] || null, 
+        media_type: postMedia.length > 0 ? 'image' : null, 
+        post_type: postTag || 'post',
+        post_scope: 'feed'
+      }); 
+      setPosts(prev => [data, ...prev]); 
+      setPostContent(''); 
+      setPostMedia([]); 
+      setPostTag(null); 
+      setShowComposer(false); 
+    } catch (err) {} finally { 
+      setPosting(false); 
+    } 
+  };
+  
   const handleLikePost = async (postId) => { try { const { data } = await axios.post(`${API_URL}/api/posts/${postId}/like`, { user_id: user.id }); setPosts(prev => prev.map(p => p.id === postId ? { ...p, likes_count: data.liked ? p.likes_count + 1 : p.likes_count - 1 } : p)); setLikedPosts(prev => ({ ...prev, [postId]: data.liked })); } catch (err) {} };
   const handleAddComment = async (postId) => { if (!commentText.trim()) return; try { await axios.post(`${API_URL}/api/comments/${postId}`, { user_id: user.id, content: commentText }); setCommentText(''); fetchComments(postId); setPosts(prev => prev.map(p => p.id === postId ? { ...p, comments_count: (p.comments_count || 0) + 1 } : p)); } catch (err) {} };
   const handleDeleteComment = async (commentId, postId) => { try { await axios.delete(`${API_URL}/api/comments/${commentId}`); fetchComments(postId); setPosts(prev => prev.map(p => p.id === postId ? { ...p, comments_count: Math.max((p.comments_count || 1) - 1, 0) } : p)); } catch (err) {} };
@@ -239,36 +315,40 @@ const Dashboard = () => {
 
   const handleSearch = async (query) => {
     setSearchQuery(query);
-    if (query.trim().length < 1) {
-      setShowSearchResults(false);
-      setSearchResults({ users: [], posts: [] });
-      return;
-    }
-    try {
-      const { data } = await axios.get(`${API_URL}/api/search?q=${encodeURIComponent(query)}`);
-      setSearchResults(data);
-      setShowSearchResults(true);
-    } catch (err) { /* silent */ }
+    if (query.trim().length < 1) { setShowSearchResults(false); setSearchResults({ users: [], posts: [] }); return; }
+    try { const { data } = await axios.get(`${API_URL}/api/search?q=${encodeURIComponent(query)}`); setSearchResults(data); setShowSearchResults(true); } catch (err) {}
   };
+
+  const handleLogout = () => { localStorage.clear(); sessionStorage.clear(); window.location.href = '/'; };
 
   const formatTime = (ds) => { const n = new Date(), d = new Date(ds), dm = Math.floor((n-d)/60000), dh = Math.floor(dm/60), dd = Math.floor(dh/24); if (dm<1) return 'Just now'; if (dm<60) return `${dm}m`; if (dh<24) return `${dh}h`; if (dd===1) return 'Yesterday'; if (dd<7) return `${dd}d`; return d.toLocaleDateString('en-ZA',{day:'numeric',month:'short'}); };
   const renderContent = (t) => { if(!t) return null; return t.split(/(#\w+)/g).map((p,i)=>p.startsWith('#')?<span key={i} style={{color:'#4da6ff',fontWeight:500}}>{p}</span>:p); };
   const getFacultyColor = (dept) => { const c=['Applied Information Systems','Business Management','Economics and Econometrics','Finance & Investment Management','Information & Knowledge Management','Public Management & Governance','Hospitality','Commercial Accountancy','Industrial Psychology','Marketing','Transport & Supply Chain Management','Tourism','Accountancy']; if(c.some(d=>dept?.includes(d)))return'#2563eb'; if(dept?.includes('Law'))return'#dc2626'; if(dept?.includes('Science'))return'#16a34a'; if(dept?.includes('Humanities'))return'#9333ea'; if(dept?.includes('Health'))return'#ea580c'; if(dept?.includes('Engineering'))return'#ca8a04'; return'#666'; };
-  const getFacultyGradient = (dept) => `linear-gradient(135deg,${getFacultyColor(dept)},${getFacultyColor(dept)}88)`;
 
   const theme = { bg:darkMode?'#000':'#fff', text:darkMode?'#fff':'#1a1a1a', textSecondary:darkMode?'#aaa':'#888', border:darkMode?'#222':'#eee', borderLight:darkMode?'#1a1a1a':'#f5f5f5', cardBg:darkMode?'#111':'#f5f5f5', inputBg:darkMode?'#1a1a1a':'#f5f5f5' };
 
   const hubTabs = [
     { id: 'connect', title: '', subtitle: '', color: '#FF6B00', video: '/campus.mp4', link: '/connect-hub', isLogo: true },
     { id: 'running', title: 'Running Club', subtitle: 'Join the pack', color: '#16a34a', video: '/run.mp4', link: '/running-club' },
-    { id: 'varsity', title: 'Varsity Cup', subtitle: 'Game day', color: '#dc2626', video: '/run.mp4', link: '/varsity-cup' },
+    { id: 'varsity', title: 'Varsity Cup', subtitle: 'Game day', color: '#dc2626', video: '/study.mp4', link: '/varsity-cup' },
     { id: 'tours', title: 'Campus Tours', subtitle: 'Explore UJ', color: '#9333ea', video: '/campus.mp4', link: '/campus-tours' },
     { id: 'study', title: 'Study Sessions', subtitle: 'Grind time', color: '#ea580c', video: '/study.mp4', link: '/study-sessions' },
     { id: 'career', title: 'Career Fair', subtitle: 'Get hired', color: '#ca8a04', video: '/campus.mp4', link: '/career-fair' },
   ];
 
-  const defaultStories = [{id:'d1',name:'Thabo',dept:'Applied Information Systems'},{id:'d2',name:'Lerato',dept:'Marketing'},{id:'d3',name:'Sipho',dept:'Finance & Investment Management'},{id:'d4',name:'Amahle',dept:'Information & Knowledge Management'},{id:'d5',name:'Neo',dept:'Law'}];
-  const tabs = [{id:'home',icon:HomeIcon,label:'Feed'},{id:'projects',icon:ProjectsIcon,label:'Collabs'},{id:'communities',icon:CommunitiesIcon,label:'Squads'},{id:'forums',icon:ForumsIcon,label:'The Plug'},{id:'messages',icon:MessagesIcon,label:'Chats'}];
+  const defaultStories = [
+    { id: 'd1', name: 'Thabo', dept: 'Applied Information Systems', profilePic: '/S1.jpg' },
+    { id: 'd2', name: 'Lerato', dept: 'Marketing', profilePic: '/S2.jpg' },
+    { id: 'd3', name: 'Sipho', dept: 'Finance & Investment Management', profilePic: '/S3.jpg' },
+    { id: 'd4', name: 'Amahle', dept: 'Information & Knowledge Management', profilePic: '/S4.jpg' },
+    { id: 'd5', name: 'Neo', dept: 'Law', profilePic: '/S1.jpg' },
+  ];
+
+  const tabs = [
+    { id: 'home', icon: HomeIcon, label: 'Feed' },
+    { id: 'communities', icon: CommunitiesIcon, label: 'Community' },
+    { id: 'profile', icon: ProfileIcon, label: 'Profile' },
+  ];
 
   const myStories = storiesList.filter(s=>s.user_id===user.id);
   const otherStories = storiesList.filter(s=>s.user_id!==user.id);
@@ -277,19 +357,25 @@ const Dashboard = () => {
   otherStories.forEach(s=>{if(!storiesByUser[s.user_id])storiesByUser[s.user_id]=[];storiesByUser[s.user_id].push({...s,isMine:false});});
   const currentViewingStory = viewingStoryUserId && viewingStoriesList.length>0 ? viewingStoriesList[viewingStoryIndex] : null;
 
-  const handleTabClick = (tabId) => { if (tabId === 'home') return; if (tabId === 'projects') navigate('/projects'); else if (tabId === 'communities') navigate('/communities'); else if (tabId === 'forums') navigate('/forums'); else if (tabId === 'messages') navigate('/messages'); };
+  const handleTabClick = (tabId) => {
+    if (tabId === 'home') return;
+    if (tabId === 'communities') navigate('/communities');
+    else if (tabId === 'profile') navigate('/profile');
+  };
 
   const scopeOptions = [{ value: 'faculty', label: 'My Faculty' },{ value: 'campus', label: 'My Campus' },{ value: 'university', label: 'All UJ' },{ value: 'different', label: 'Different Campus' }];
   const genderOptions = [{ value: 'mix', label: 'Mixed' },{ value: 'male', label: 'Males Only' },{ value: 'female', label: 'Females Only' }];
+
+  // ... (renderHome and return remain the same as your current file)
 
   const renderHome = () => (
     <div style={{ paddingBottom: '80px' }}>
       {/* Header */}
       <div style={{ padding: '12px 20px', borderBottom: `1px solid ${theme.border}`, position: 'sticky', top: 0, background: theme.bg, zIndex: 10, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-        <div onClick={() => navigate('/profile')} style={{ width: 34, height: 34, borderRadius: '50%', background: user.profile_pic ? `url(${user.profile_pic}) center/cover` : '#FF6B00', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'white', fontWeight: 700, fontSize: 14, cursor: 'pointer', flexShrink: 0 }}>
-          {!user.profile_pic && (user.full_name?.charAt(0) || user.email?.charAt(0) || 'U')}
-        </div>
-        <div style={{ position: 'absolute', left: '50%', transform: 'translateX(-50%)', cursor: 'pointer' }} onClick={() => setShowMeetPeople(true)}>
+        <button onClick={() => setShowSidebar(true)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: theme.text, padding: '4px', display: 'flex' }}>
+          <MenuIcon />
+        </button>
+        <div style={{ position: 'absolute', left: '50%', transform: 'translateX(-50%)' }}>
           <img src="/UJCONNECT.png" alt="UJ Connect" style={{ height: 40, width: 'auto' }} />
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
@@ -299,8 +385,8 @@ const Dashboard = () => {
           <button onClick={() => setShowComposer(true)} style={{ background: '#FF6B00', color: 'white', border: 'none', padding: '8px 18px', borderRadius: 20, fontWeight: 600, fontSize: 13, cursor: 'pointer', fontFamily: 'inherit' }}>Post</button>
         </div>
       </div>
-
-      {/* Hub Tabs Banner - Rectangular with playing videos */}
+      {/* Rest of renderHome unchanged */}
+      {/* Hub Tabs Banner */}
       <div style={{ padding: '12px 20px', borderBottom: `1px solid ${theme.border}` }}>
         <div style={{ display: 'flex', gap: 10, overflowX: 'auto', paddingBottom: 4 }}>
           {hubTabs.map((tab) => (
@@ -316,17 +402,16 @@ const Dashboard = () => {
       </div>
 
       {/* Stories Row */}
-      <div style={{ padding: '12px 20px', borderBottom: `1px solid ${theme.border}`, display: 'flex', gap: 14, overflowX: 'auto' }}>
+      <div style={{ padding: '12px 20px', borderBottom: `1px solid ${theme.border}`, display: 'flex', gap: 16, overflowX: 'auto', alignItems: 'center' }}>
         <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4, flexShrink: 0 }}>
-          <div onClick={() => document.getElementById('story-file-input').click()} style={{ cursor: 'pointer', color: '#FF6B00', display: 'flex', justifyContent: 'center', marginBottom: 2 }}><SmallPlusIcon /></div>
-          <div onClick={() => { if (myStories.length > 0) handleViewStory(user.id); else document.getElementById('story-file-input').click(); }} style={{ width: 60, height: 60, borderRadius: '50%', padding: 3, background: myStories.length > 0 ? getFacultyGradient(user.department) : 'transparent', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}>
-            <div style={{ width: 54, height: 54, borderRadius: '50%', overflow: 'hidden', display: 'flex', alignItems: 'center', justifyContent: 'center', background: user.profile_pic ? `url(${user.profile_pic}) center/cover` : theme.cardBg, border: myStories.length === 0 ? `2px solid ${theme.border}` : 'none' }}>{!user.profile_pic && <span style={{ fontWeight: 700, fontSize: 18, color: theme.textSecondary }}>{user.full_name?.charAt(0) || 'U'}</span>}</div>
+          <div onClick={() => document.getElementById('story-file-input').click()} style={{ cursor: 'pointer', color: '#25D366', display: 'flex', justifyContent: 'center', marginBottom: 2 }}><SmallPlusIcon /></div>
+          <div onClick={() => { if (myStories.length > 0) handleViewStory(user.id); else document.getElementById('story-file-input').click(); }} style={{ width: 72, height: 72, borderRadius: '50%', padding: 3, background: myStories.length > 0 ? '#25D366' : 'transparent', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}>
+            <div style={{ width: 66, height: 66, borderRadius: '50%', overflow: 'hidden', display: 'flex', alignItems: 'center', justifyContent: 'center', background: user.profile_pic ? `url(${user.profile_pic}) center/cover` : theme.cardBg, border: myStories.length === 0 ? `2px solid ${theme.border}` : 'none' }}>{!user.profile_pic && <span style={{ fontWeight: 700, fontSize: 22, color: theme.textSecondary }}>{user.full_name?.charAt(0) || 'U'}</span>}</div>
           </div>
-          <span style={{ fontSize: 11, color: theme.textSecondary, fontWeight: 500 }}>You</span>
         </div>
         <input id="story-file-input" type="file" accept="image/*,video/*" onChange={handleStoryFileSelect} style={{ display: 'none' }} />
-        {Object.keys(storiesByUser).filter(uid => parseInt(uid) !== user.id).map(uid => { const uss = storiesByUser[uid]; const fs = uss[0]; const av = uss.every(s => viewedStories.includes(s.id)); return (<div key={uid} onClick={() => handleViewStory(parseInt(uid))} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4, cursor: 'pointer', flexShrink: 0 }}><div style={{ width: 60, height: 60, borderRadius: '50%', padding: 3, background: av ? '#888' : getFacultyGradient(fs.department), display: 'flex', alignItems: 'center', justifyContent: 'center' }}><div style={{ width: 54, height: 54, borderRadius: '50%', overflow: 'hidden', display: 'flex', alignItems: 'center', justifyContent: 'center', background: theme.cardBg }}>{fs.profile_pic ? <img src={fs.profile_pic} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} /> : <span style={{ fontWeight: 700, fontSize: 18, color: theme.textSecondary }}>{(fs.preferred_name || fs.full_name || '?').charAt(0)}</span>}</div></div><span style={{ fontSize: 11, color: theme.textSecondary, fontWeight: 500 }}>{fs.preferred_name || fs.full_name || 'User'}</span></div>); })}
-        {Object.keys(storiesByUser).filter(uid => parseInt(uid) !== user.id).length === 0 && defaultStories.map(s => (<div key={s.id} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4, cursor: 'pointer', flexShrink: 0 }}><div style={{ width: 60, height: 60, borderRadius: '50%', padding: 3, background: getFacultyGradient(s.dept), display: 'flex', alignItems: 'center', justifyContent: 'center' }}><div style={{ width: 54, height: 54, borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', background: `linear-gradient(135deg,${getFacultyColor(s.dept)},${getFacultyColor(s.dept)}88)` }}><span style={{ fontWeight: 700, fontSize: 18, color: 'white' }}>{s.name.charAt(0)}</span></div></div><span style={{ fontSize: 11, color: theme.textSecondary, fontWeight: 500 }}>{s.name}</span></div>))}
+        {Object.keys(storiesByUser).filter(uid => parseInt(uid) !== user.id).map(uid => { const uss = storiesByUser[uid]; const fs = uss[0]; const av = uss.every(s => viewedStories.includes(s.id)); return (<div key={uid} onClick={() => handleViewStory(parseInt(uid))} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4, cursor: 'pointer', flexShrink: 0 }}><div style={{ width: 72, height: 72, borderRadius: '50%', padding: 3, background: av ? '#888' : '#25D366', display: 'flex', alignItems: 'center', justifyContent: 'center' }}><div style={{ width: 66, height: 66, borderRadius: '50%', overflow: 'hidden', display: 'flex', alignItems: 'center', justifyContent: 'center', background: fs.profile_pic ? `url(${fs.profile_pic}) center/cover` : theme.cardBg }}>{!fs.profile_pic && <span style={{ fontWeight: 700, fontSize: 22, color: theme.textSecondary }}>{(fs.preferred_name || fs.full_name || '?').charAt(0)}</span>}</div></div></div>); })}
+        {Object.keys(storiesByUser).filter(uid => parseInt(uid) !== user.id).length === 0 && defaultStories.map(s => (<div key={s.id} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4, cursor: 'pointer', flexShrink: 0 }}><div style={{ width: 72, height: 72, borderRadius: '50%', padding: 3, background: '#25D366', display: 'flex', alignItems: 'center', justifyContent: 'center' }}><div style={{ width: 66, height: 66, borderRadius: '50%', overflow: 'hidden', display: 'flex', alignItems: 'center', justifyContent: 'center', background: `url(${s.profilePic}) center/cover` }} /></div></div>))}
       </div>
 
       {/* Search + What's happening */}
@@ -335,31 +420,18 @@ const Dashboard = () => {
           <div style={{ width: 34, height: 34, borderRadius: '50%', background: user.profile_pic ? `url(${user.profile_pic}) center/cover` : '#FF6B00', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'white', fontWeight: 700, fontSize: 14, flexShrink: 0 }}>
             {!user.profile_pic && (user.full_name?.charAt(0) || user.email?.charAt(0) || 'U')}
           </div>
-          <input
-            type="text"
-            placeholder="Search UJ Connect..."
-            value={searchQuery}
-            onChange={(e) => handleSearch(e.target.value)}
-            onFocus={() => searchQuery.trim() && setShowSearchResults(true)}
-            style={{ flex: 1, border: 'none', outline: 'none', fontSize: 15, fontFamily: 'inherit', color: theme.text, background: theme.inputBg, borderRadius: 24, padding: '10px 16px' }}
-          />
+          <input type="text" placeholder="Search UJ Connect..." value={searchQuery} onChange={(e) => handleSearch(e.target.value)} onFocus={() => searchQuery.trim() && setShowSearchResults(true)} style={{ flex: 1, border: 'none', outline: 'none', fontSize: 15, fontFamily: 'inherit', color: theme.text, background: theme.inputBg, borderRadius: 24, padding: '10px 16px' }} />
           <SearchIcon />
         </div>
-
-        {/* Search Results Dropdown */}
         {showSearchResults && (searchResults.users.length > 0 || searchResults.posts.length > 0) && (
           <div style={{ position: 'absolute', top: '100%', left: 20, right: 20, background: theme.bg, borderRadius: 12, border: `1px solid ${theme.border}`, boxShadow: '0 10px 30px rgba(0,0,0,0.15)', zIndex: 50, maxHeight: 400, overflowY: 'auto' }}>
             {searchResults.users.length > 0 && (
               <div style={{ padding: '8px 0' }}>
                 <div style={{ fontSize: 12, fontWeight: 600, color: theme.textSecondary, padding: '8px 16px', textTransform: 'uppercase' }}>People</div>
                 {searchResults.users.map(u => (
-                  <div key={u.id} onClick={() => { navigate(`/profile/${u.id}`); setShowSearchResults(false); setSearchQuery(''); }} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 16px', cursor: 'pointer', background: 'transparent' }}
-                    onMouseEnter={e => e.currentTarget.style.background = theme.cardBg} onMouseLeave={e => e.currentTarget.style.background = 'transparent'}>
+                  <div key={u.id} onClick={() => { navigate(`/profile/${u.id}`); setShowSearchResults(false); setSearchQuery(''); }} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 16px', cursor: 'pointer' }} onMouseEnter={e => e.currentTarget.style.background = theme.cardBg} onMouseLeave={e => e.currentTarget.style.background = 'transparent'}>
                     <div style={{ width: 36, height: 36, borderRadius: '50%', background: u.profile_pic ? `url(${u.profile_pic}) center/cover` : getFacultyColor(u.department), display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'white', fontWeight: 600, fontSize: 13 }}>{!u.profile_pic && (u.preferred_name || u.full_name || '?').charAt(0)}</div>
-                    <div>
-                      <div style={{ fontWeight: 600, fontSize: 14, color: theme.text }}>{u.preferred_name || u.full_name}</div>
-                      <div style={{ fontSize: 12, color: theme.textSecondary }}>{u.department}</div>
-                    </div>
+                    <div><div style={{ fontWeight: 600, fontSize: 14, color: theme.text }}>{u.preferred_name || u.full_name}</div><div style={{ fontSize: 12, color: theme.textSecondary }}>{u.department}</div></div>
                   </div>
                 ))}
               </div>
@@ -376,8 +448,6 @@ const Dashboard = () => {
             )}
           </div>
         )}
-
-        {/* What's happening prompt */}
         <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
           <div style={{ width: 34, height: 34, borderRadius: '50%', background: user.profile_pic ? `url(${user.profile_pic}) center/cover` : '#FF6B00', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'white', fontWeight: 700, fontSize: 14, flexShrink: 0 }}>
             {!user.profile_pic && (user.full_name?.charAt(0) || user.email?.charAt(0) || 'U')}
@@ -416,6 +486,40 @@ const Dashboard = () => {
     <div style={{ minHeight: '100vh', background: theme.bg, fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif', maxWidth: 600, margin: '0 auto', position: 'relative' }}>
       {renderHome()}
 
+      {/* SIDEBAR */}
+      {showSidebar && (
+        <div onClick={() => setShowSidebar(false)} style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.5)', zIndex: 5000 }}>
+          <div onClick={(e) => e.stopPropagation()} style={{ position: 'absolute', top: 0, left: 0, bottom: 0, width: '280px', background: theme.bg, padding: '20px', display: 'flex', flexDirection: 'column', animation: 'slideIn 0.3s ease' }}>
+            <button onClick={() => setShowSidebar(false)} style={{ alignSelf: 'flex-end', background: 'none', border: 'none', cursor: 'pointer', color: theme.textSecondary, padding: '4px' }}>
+              <CloseIcon />
+            </button>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 32, marginTop: 8 }}>
+              <div style={{ width: 44, height: 44, borderRadius: '50%', background: user.profile_pic ? `url(${user.profile_pic}) center/cover` : '#FF6B00', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'white', fontWeight: 700, fontSize: 18, flexShrink: 0 }}>
+                {!user.profile_pic && (user.full_name?.charAt(0) || 'U')}
+              </div>
+              <div>
+                <div style={{ fontWeight: 700, fontSize: 15, color: theme.text }}>{user.preferred_name || user.full_name || 'Student'}</div>
+                <div style={{ fontSize: 12, color: theme.textSecondary }}>@{user.student_number || 'student'}</div>
+              </div>
+            </div>
+            <div style={{ flex: 1 }}>
+              <button onClick={() => { setShowSidebar(false); navigate('/profile'); }} style={{ width: '100%', display: 'flex', alignItems: 'center', gap: 14, padding: '14px 12px', background: 'none', border: 'none', borderRadius: '12px', cursor: 'pointer', color: theme.text, fontFamily: 'inherit', fontSize: '15px', fontWeight: 500, marginBottom: '4px' }}>
+                <ProfileIcon /> Profile
+              </button>
+              <button onClick={() => { setShowSidebar(false); navigate('/uj-shop'); }} style={{ width: '100%', display: 'flex', alignItems: 'center', gap: 14, padding: '14px 12px', background: 'none', border: 'none', borderRadius: '12px', cursor: 'pointer', color: theme.text, fontFamily: 'inherit', fontSize: '15px', fontWeight: 500, marginBottom: '4px' }}>
+                <ShopIcon /> UJ Shop
+              </button>
+              <button onClick={() => { setShowSidebar(false); }} style={{ width: '100%', display: 'flex', alignItems: 'center', gap: 14, padding: '14px 12px', background: 'none', border: 'none', borderRadius: '12px', cursor: 'pointer', color: theme.text, fontFamily: 'inherit', fontSize: '15px', fontWeight: 500, marginBottom: '4px' }}>
+                <SmartclassIcon /> Smartclass
+              </button>
+            </div>
+            <button onClick={() => { handleLogout(); }} style={{ width: '100%', display: 'flex', alignItems: 'center', gap: 14, padding: '14px 12px', background: 'none', border: 'none', borderRadius: '12px', cursor: 'pointer', color: '#dc2626', fontFamily: 'inherit', fontSize: '15px', fontWeight: 500 }}>
+              <LogoutIcon /> Logout
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* STORY UPLOAD PREVIEW */}
       {showStoryUpload && storyPreview && (<div onClick={() => { setShowStoryUpload(false); setStoryFile(null); setStoryPreview(null); }} style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.95)', zIndex: 3000, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: 20 }}><button onClick={() => { setShowStoryUpload(false); setStoryFile(null); setStoryPreview(null); }} style={{ position: 'absolute', top: 20, right: 20, background: 'none', border: 'none', color: 'white', cursor: 'pointer', zIndex: 5 }}><CloseIcon /></button><div style={{ color: 'white', fontSize: 16, marginBottom: 20, fontWeight: 600 }}>Preview Story</div>{storyFile?.type?.startsWith('video') ? <video src={storyPreview} controls style={{ maxWidth: '100%', maxHeight: '60vh', borderRadius: 12 }} /> : <img src={storyPreview} alt="Story" style={{ maxWidth: '100%', maxHeight: '60vh', borderRadius: 12, objectFit: 'contain' }} />}<div style={{ display: 'flex', gap: 12, marginTop: 20 }}><button onClick={() => { setShowStoryUpload(false); setStoryFile(null); setStoryPreview(null); }} style={{ padding: '14px 30px', background: 'rgba(255,255,255,0.15)', color: 'white', border: 'none', borderRadius: 24, fontSize: 15, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' }}>Cancel</button><button onClick={handleUploadStory} disabled={uploadingStory} style={{ padding: '14px 30px', background: '#FF6B00', color: 'white', border: 'none', borderRadius: 24, fontSize: 15, fontWeight: 600, cursor: uploadingStory ? 'not-allowed' : 'pointer', fontFamily: 'inherit', opacity: uploadingStory ? 0.7 : 1 }}>{uploadingStory ? 'Uploading...' : 'Post Story'}</button></div></div>)}
 
@@ -431,7 +535,7 @@ const Dashboard = () => {
       </div>)}
 
       {/* COMPOSER MODAL */}
-      {showComposer && (<div onClick={() => { setShowComposer(false); setPostTag(null); setPostContent(''); setPostMedia([]); }} style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.6)', zIndex: 2000, display: 'flex', alignItems: 'flex-start', justifyContent: 'center', padding: 20, paddingTop: 60 }}><div onClick={e => e.stopPropagation()} style={{ background: theme.bg, borderRadius: 20, width: '100%', maxWidth: 500, overflow: 'hidden' }}><div style={{ display: 'flex', borderBottom: `1px solid ${theme.border}` }}>{['post', 'project', 'community'].map(t => (<button key={t} onClick={() => setComposerTab(t)} style={{ flex: 1, padding: 14, background: 'none', border: 'none', color: composerTab === t ? '#FF6B00' : theme.textSecondary, fontWeight: 600, fontSize: 14, cursor: 'pointer', fontFamily: 'inherit', position: 'relative' }}>{t.charAt(0).toUpperCase() + t.slice(1)}{composerTab === t && <div style={{ position: 'absolute', bottom: 0, left: '20%', right: '20%', height: 2, background: '#FF6B00', borderRadius: 1 }} />}</button>))}<button onClick={() => { setShowComposer(false); setPostTag(null); setPostContent(''); setPostMedia([]); }} style={{ padding: 14, background: 'none', border: 'none', color: theme.textSecondary, cursor: 'pointer', fontSize: 18 }}><CloseIcon /></button></div>{composerTab === 'post' && (<div style={{ padding: 16 }}><div style={{ display: 'flex', gap: 10, marginBottom: 16 }}><button onClick={() => setPostTag(postTag === 'warning' ? null : 'warning')} style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '8px 14px', borderRadius: 20, border: postTag === 'warning' ? '2px solid #dc2626' : `1.5px solid ${theme.border}`, background: postTag === 'warning' ? '#fef2f2' : 'transparent', color: postTag === 'warning' ? '#dc2626' : theme.textSecondary, fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' }}><WarningIcon color={postTag === 'warning' ? '#dc2626' : theme.textSecondary} /> Warning</button><button onClick={() => setPostTag(postTag === 'awareness' ? null : 'awareness')} style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '8px 14px', borderRadius: 20, border: postTag === 'awareness' ? '2px solid #f59e0b' : `1.5px solid ${theme.border}`, background: postTag === 'awareness' ? '#fffbeb' : 'transparent', color: postTag === 'awareness' ? '#f59e0b' : theme.textSecondary, fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' }}><AwarenessIcon color={postTag === 'awareness' ? '#f59e0b' : theme.textSecondary} /> Awareness</button></div><textarea value={postContent} onChange={e => setPostContent(e.target.value)} placeholder="What's happening?" rows={5} style={{ width: '100%', padding: '12px 0', border: 'none', outline: 'none', fontSize: 16, fontFamily: 'inherit', resize: 'none', background: 'transparent', color: theme.text, boxSizing: 'border-box' }} />{postMedia.length > 0 && (<div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginBottom: 12 }}>{postMedia.map((url, i) => (<div key={i} style={{ position: 'relative' }}><img src={url} alt="Media" style={{ width: 80, height: 80, borderRadius: 10, objectFit: 'cover' }} /><button onClick={() => setPostMedia(prev => prev.filter((_, j) => j !== i))} style={{ position: 'absolute', top: -6, right: -6, width: 20, height: 20, borderRadius: '50%', background: '#dc2626', color: 'white', border: 'none', cursor: 'pointer', fontSize: 11, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>x</button></div>))}</div>)}<div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderTop: `1px solid ${theme.border}`, paddingTop: 12 }}><div style={{ display: 'flex', gap: 8 }}><label style={{ cursor: 'pointer', color: theme.textSecondary, padding: 6, display: 'flex' }}><ImageIcon /><input type="file" accept="image/*" onChange={e => handlePostMediaUpload(e.target.files[0])} style={{ display: 'none' }} /></label><label style={{ cursor: 'pointer', color: theme.textSecondary, padding: 6, display: 'flex' }}><VideoIcon /><input type="file" accept="video/*" onChange={e => handlePostMediaUpload(e.target.files[0])} style={{ display: 'none' }} /></label></div><button onClick={handleCreatePost} disabled={posting || (!postContent.trim() && postMedia.length === 0)} style={{ padding: '10px 24px', background: '#FF6B00', color: 'white', border: 'none', borderRadius: 24, fontSize: 14, fontWeight: 600, cursor: posting ? 'not-allowed' : 'pointer', fontFamily: 'inherit', opacity: posting || (!postContent.trim() && postMedia.length === 0) ? 0.5 : 1 }}>{posting ? 'Posting...' : 'Post'}</button></div></div>)}{composerTab === 'project' && (<div style={{ padding: 24, textAlign: 'center' }}><h3 style={{ fontSize: 18, fontWeight: 700, color: theme.text, marginBottom: 16 }}>Start a Collab</h3><button onClick={() => { setShowComposer(false); navigate('/projects'); }} style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: '14px 28px', background: '#FF6B00', color: 'white', border: 'none', borderRadius: 24, fontSize: 15, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit', marginBottom: 16 }}><SmallPlusIcon /> Start a Collab</button></div>)}{composerTab === 'community' && (<div style={{ padding: 24, textAlign: 'center' }}><h3 style={{ fontSize: 18, fontWeight: 700, color: theme.text, marginBottom: 16 }}>Start a Squad</h3><button onClick={() => { setShowComposer(false); navigate('/communities'); }} style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: '14px 28px', background: '#FF6B00', color: 'white', border: 'none', borderRadius: 24, fontSize: 15, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit', marginBottom: 16 }}><SmallPlusIcon /> Start a Squad</button></div>)}</div></div>)}
+      {showComposer && (<div onClick={() => { setShowComposer(false); setPostTag(null); setPostContent(''); setPostMedia([]); }} style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.6)', zIndex: 2000, display: 'flex', alignItems: 'flex-start', justifyContent: 'center', padding: 20, paddingTop: 60 }}><div onClick={e => e.stopPropagation()} style={{ background: theme.bg, borderRadius: 20, width: '100%', maxWidth: 500, overflow: 'hidden' }}><div style={{ display: 'flex', borderBottom: `1px solid ${theme.border}` }}>{['post', 'project', 'community'].map(t => (<button key={t} onClick={() => setComposerTab(t)} style={{ flex: 1, padding: 14, background: 'none', border: 'none', color: composerTab === t ? '#FF6B00' : theme.textSecondary, fontWeight: 600, fontSize: 14, cursor: 'pointer', fontFamily: 'inherit', position: 'relative' }}>{t.charAt(0).toUpperCase() + t.slice(1)}{composerTab === t && <div style={{ position: 'absolute', bottom: 0, left: '20%', right: '20%', height: 2, background: '#FF6B00', borderRadius: 1 }} />}</button>))}<button onClick={() => { setShowComposer(false); setPostTag(null); setPostContent(''); setPostMedia([]); }} style={{ padding: 14, background: 'none', border: 'none', color: theme.textSecondary, cursor: 'pointer', fontSize: 18 }}><CloseIcon /></button></div>{composerTab === 'post' && (<div style={{ padding: 16 }}><div style={{ display: 'flex', gap: 10, marginBottom: 16 }}><button onClick={() => setPostTag(postTag === 'warning' ? null : 'warning')} style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '8px 14px', borderRadius: 20, border: postTag === 'warning' ? '2px solid #dc2626' : `1.5px solid ${theme.border}`, background: postTag === 'warning' ? '#fef2f2' : 'transparent', color: postTag === 'warning' ? '#dc2626' : theme.textSecondary, fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' }}><WarningIcon color={postTag === 'warning' ? '#dc2626' : theme.textSecondary} /> Warning</button><button onClick={() => setPostTag(postTag === 'awareness' ? null : 'awareness')} style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '8px 14px', borderRadius: 20, border: postTag === 'awareness' ? '2px solid #f59e0b' : `1.5px solid ${theme.border}`, background: postTag === 'awareness' ? '#fffbeb' : 'transparent', color: postTag === 'awareness' ? '#f59e0b' : theme.textSecondary, fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' }}><AwarenessIcon color={postTag === 'awareness' ? '#f59e0b' : theme.textSecondary} /> Awareness</button></div><textarea value={postContent} onChange={e => setPostContent(e.target.value)} placeholder="What's happening?" rows={5} style={{ width: '100%', padding: '12px 0', border: 'none', outline: 'none', fontSize: 16, fontFamily: 'inherit', resize: 'none', background: 'transparent', color: theme.text, boxSizing: 'border-box' }} />{postMedia.length > 0 && (<div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginBottom: 12 }}>{postMedia.map((url, i) => (<div key={i} style={{ position: 'relative' }}><img src={url} alt="Media" style={{ width: 80, height: 80, borderRadius: 10, objectFit: 'cover' }} /><button onClick={() => setPostMedia(prev => prev.filter((_, j) => j !== i))} style={{ position: 'absolute', top: -6, right: -6, width: 20, height: 20, borderRadius: '50%', background: '#dc2626', color: 'white', border: 'none', cursor: 'pointer', fontSize: 11, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>x</button></div>))}</div>)}<div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderTop: `1px solid ${theme.border}`, paddingTop: 12 }}><div style={{ display: 'flex', gap: 8 }}><label style={{ cursor: 'pointer', color: theme.textSecondary, padding: 6, display: 'flex' }}><ImageIcon /><input type="file" accept="image/*" onChange={e => handlePostMediaUpload(e.target.files[0])} style={{ display: 'none' }} /></label><label style={{ cursor: 'pointer', color: theme.textSecondary, padding: 6, display: 'flex' }}><VideoIcon /><input type="file" accept="video/*" onChange={e => handlePostMediaUpload(e.target.files[0])} style={{ display: 'none' }} /></label></div><button onClick={handleCreatePost} disabled={posting || (!postContent.trim() && postMedia.length === 0)} style={{ padding: '10px 24px', background: '#FF6B00', color: 'white', border: 'none', borderRadius: 24, fontSize: 14, fontWeight: 600, cursor: posting ? 'not-allowed' : 'pointer', fontFamily: 'inherit', opacity: posting || (!postContent.trim() && postMedia.length === 0) ? 0.5 : 1 }}>{posting ? 'Posting...' : 'Post'}</button></div></div>)}{composerTab === 'project' && (<div style={{ padding: 24, textAlign: 'center' }}><h3 style={{ fontSize: 18, fontWeight: 700, color: theme.text, marginBottom: 16 }}>Start a Collab</h3><button onClick={() => { setShowComposer(false); navigate('/communities'); }} style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: '14px 28px', background: '#FF6B00', color: 'white', border: 'none', borderRadius: 24, fontSize: 15, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit', marginBottom: 16 }}><SmallPlusIcon /> Start a Collab</button></div>)}{composerTab === 'community' && (<div style={{ padding: 24, textAlign: 'center' }}><h3 style={{ fontSize: 18, fontWeight: 700, color: theme.text, marginBottom: 16 }}>Start a Squad</h3><button onClick={() => { setShowComposer(false); navigate('/communities'); }} style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: '14px 28px', background: '#FF6B00', color: 'white', border: 'none', borderRadius: 24, fontSize: 15, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit', marginBottom: 16 }}><SmallPlusIcon /> Start a Squad</button></div>)}</div></div>)}
 
       {/* MEET PEOPLE MODAL */}
       {showMeetPeople && (
@@ -457,12 +561,13 @@ const Dashboard = () => {
       )}
 
       <div style={{ position: 'fixed', bottom: 0, left: '50%', transform: 'translateX(-50%)', width: '100%', maxWidth: 600, background: theme.bg, borderTop: `1px solid ${theme.border}`, display: 'flex', justifyContent: 'space-around', padding: '8px 0', zIndex: 100, paddingBottom: 'max(8px, env(safe-area-inset-bottom))' }}>
-        {tabs.map(tab => { const Icon = tab.icon; const isActive = (tab.id === 'home'); return (<button key={tab.id} onClick={() => handleTabClick(tab.id)} style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '8px 16px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4, color: isActive ? '#FF6B00' : theme.textSecondary, fontFamily: 'inherit', transition: 'color 0.2s' }}><Icon /><span style={{ fontSize: 10, fontWeight: isActive ? 600 : 400 }}>{tab.label}</span></button>); })}
+        {tabs.map(tab => { const Icon = tab.icon; const isActive = (tab.id === 'home'); return (<button key={tab.id} onClick={() => handleTabClick(tab.id)} style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '8px 20px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4, color: isActive ? '#FF6B00' : theme.textSecondary, fontFamily: 'inherit', transition: 'color 0.2s' }}><Icon /><span style={{ fontSize: 10, fontWeight: isActive ? 600 : 400 }}>{tab.label}</span></button>); })}
       </div>
 
       <style>{`
         @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
         @keyframes float { 0%, 100% { transform: translateY(0px); } 50% { transform: translateY(-8px); } }
+        @keyframes slideIn { from { transform: translateX(-100%); } to { transform: translateX(0); } }
       `}</style>
     </div>
   );

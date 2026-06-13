@@ -11,6 +11,7 @@ import ConnectHub from './pages/ConnectHub';
 import RunningClub from './pages/RunningClub';
 import VarsityCup from './pages/VarsityCup';
 import CampusTours from './pages/CampusTours';
+import UJShop from './pages/UJShop';
 
 function App() {
   const user = localStorage.getItem('ujconnect_user');
@@ -31,6 +32,7 @@ function App() {
         <Route path="/running-club" element={user ? <RunningClub /> : <Navigate to="/" />} />
         <Route path="/varsity-cup" element={user ? <VarsityCup /> : <Navigate to="/" />} />
         <Route path="/campus-tours" element={user ? <CampusTours /> : <Navigate to="/" />} />
+        <Route path="/uj-shop" element={user ? <UJShop /> : <Navigate to="/" />} />
       </Routes>
     </BrowserRouter>
   );

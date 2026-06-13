@@ -93,7 +93,6 @@ const Messages = () => {
     const onStorage = () => setDarkMode(localStorage.getItem('ujconnect_dark_mode') === 'true');
     window.addEventListener('storage', onStorage);
 
-    // Connect to Socket.io
     socketRef.current = io(SOCKET_URL);
     socketRef.current.emit('user_online', storedUser.id);
 
@@ -102,7 +101,13 @@ const Messages = () => {
     });
 
     socketRef.current.on('new_message', (msg) => {
-      if (activeChat && (msg.sender_id === activeChat.id || msg.sender_id === storedUser.id)) {
+      if (activeChat && (String(msg.sender_id) === String(activeChat.id) || String(msg.sender_id) === String(storedUser.id))) {
+        setMessages(prev => [...prev, msg]);
+      }
+    });
+
+    socketRef.current.on('message_sent', (msg) => {
+      if (activeChat && String(msg.receiver_id) === String(activeChat.id)) {
         setMessages(prev => [...prev, msg]);
       }
     });
@@ -117,9 +122,7 @@ const Messages = () => {
 
     return () => {
       window.removeEventListener('storage', onStorage);
-      if (socketRef.current) {
-        socketRef.current.disconnect();
-      }
+      if (socketRef.current) socketRef.current.disconnect();
     };
   }, []);
 
@@ -145,26 +148,28 @@ const Messages = () => {
     try {
       const { data } = await axios.get(`${API_URL}/api/messages/${storedUser.id}/${otherUserId}`);
       setMessages(data || []);
-    } catch (err) {}
+    } catch (err) {
+      setMessages([]);
+    }
   };
 
   const handleSendMessage = () => {
     if (!chatInput.trim() || !activeChat) return;
     socketRef.current.emit('send_message', {
-      sender_id: storedUser.id,
-      receiver_id: activeChat.id,
+      sender_id: Number(storedUser.id),
+      receiver_id: Number(activeChat.id),
       content: chatInput.trim()
     });
     setChatInput('');
-    socketRef.current.emit('stop_typing', { receiver_id: activeChat.id });
+    socketRef.current.emit('stop_typing', { receiver_id: Number(activeChat.id) });
   };
 
   const handleTyping = () => {
     if (!activeChat) return;
-    socketRef.current.emit('typing', { sender_id: storedUser.id, receiver_id: activeChat.id });
+    socketRef.current.emit('typing', { sender_id: Number(storedUser.id), receiver_id: Number(activeChat.id) });
     if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
     typingTimeoutRef.current = setTimeout(() => {
-      socketRef.current.emit('stop_typing', { receiver_id: activeChat.id });
+      socketRef.current.emit('stop_typing', { receiver_id: Number(activeChat.id) });
     }, 1500);
   };
 
@@ -185,8 +190,13 @@ const Messages = () => {
   };
 
   const handleAddPerson = (person) => {
+    if (addedUsers.find(u => u.id === person.id)) {
+      setActiveChat(person);
+      return;
+    }
     setAddedUsers(prev => [...prev, person]);
     setMatchedPeople(prev => prev.filter(p => p.id !== person.id));
+    setActiveChat(person);
   };
 
   const getFacultyColor = (dept) => {
@@ -249,10 +259,9 @@ const Messages = () => {
         </button>
       </div>
 
-      {/* Chat List or Active Chat */}
+      {/* Active Chat View */}
       {activeChat ? (
         <div style={{ display: 'flex', flexDirection: 'column', height: 'calc(100vh - 140px)' }}>
-          {/* Chat Header */}
           <div style={{ padding: '12px 20px', borderBottom: `1px solid ${theme.border}`, display: 'flex', alignItems: 'center', gap: '10px', cursor: 'pointer' }} onClick={() => setActiveChat(null)}>
             <ArrowLeftIcon />
             <div style={{ width: 36, height: 36, borderRadius: '50%', background: getFacultyColor(activeChat.department), display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'white', fontWeight: 700, fontSize: 14, flexShrink: 0, position: 'relative' }}>
@@ -269,18 +278,22 @@ const Messages = () => {
             </div>
           </div>
 
-          {/* Messages */}
           <div style={{ flex: 1, overflowY: 'auto', padding: '16px' }}>
+            {messages.length === 0 && (
+              <div style={{ textAlign: 'center', color: theme.textSecondary, fontSize: 13, padding: 40 }}>
+                No messages yet. Say hello!
+              </div>
+            )}
             {messages.map(msg => (
-              <div key={msg.id} style={{ display: 'flex', justifyContent: msg.sender_id === storedUser.id ? 'flex-end' : 'flex-start', marginBottom: '12px' }}>
+              <div key={msg.id} style={{ display: 'flex', justifyContent: String(msg.sender_id) === String(storedUser.id) ? 'flex-end' : 'flex-start', marginBottom: '12px' }}>
                 <div style={{
                   maxWidth: '75%',
                   padding: '10px 14px',
                   borderRadius: '18px',
-                  borderTopRightRadius: msg.sender_id === storedUser.id ? '4px' : '18px',
-                  borderTopLeftRadius: msg.sender_id === storedUser.id ? '18px' : '4px',
-                  background: msg.sender_id === storedUser.id ? '#FF6B00' : theme.cardBg,
-                  color: msg.sender_id === storedUser.id ? 'white' : theme.text,
+                  borderTopRightRadius: String(msg.sender_id) === String(storedUser.id) ? '4px' : '18px',
+                  borderTopLeftRadius: String(msg.sender_id) === String(storedUser.id) ? '18px' : '4px',
+                  background: String(msg.sender_id) === String(storedUser.id) ? '#FF6B00' : theme.cardBg,
+                  color: String(msg.sender_id) === String(storedUser.id) ? 'white' : theme.text,
                   fontSize: '14px',
                   lineHeight: 1.4
                 }}>
@@ -291,7 +304,6 @@ const Messages = () => {
             <div ref={messagesEndRef} />
           </div>
 
-          {/* Input */}
           <div style={{ padding: '12px 16px', borderTop: `1px solid ${theme.border}`, display: 'flex', gap: '8px', alignItems: 'center' }}>
             <input
               type="text"
@@ -301,14 +313,13 @@ const Messages = () => {
               onKeyDown={(e) => { if (e.key === 'Enter') handleSendMessage(); }}
               style={{ flex: 1, padding: '12px 16px', borderRadius: '24px', border: `1.5px solid ${theme.border}`, outline: 'none', fontSize: '14px', background: theme.inputBg, color: theme.text, fontFamily: 'inherit' }}
             />
-            <button onClick={handleSendMessage} disabled={!chatInput.trim()} style={{ background: '#FF6B00', color: 'white', border: 'none', borderRadius: '50%', width: '42px', height: '42px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', opacity: chatInput.trim() ? 1 : 0.5 }}>
+            <button onClick={handleSendMessage} disabled={!chatInput.trim()} style={{ background: '#FF6B00', color: 'white', border: 'none', borderRadius: '50%', width: '42px', height: '42px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', opacity: chatInput.trim() ? 1 : 0.5, flexShrink: 0 }}>
               <SendIcon />
             </button>
           </div>
         </div>
       ) : (
         <>
-          {/* People List */}
           <div style={{ padding: '16px 20px' }}>
             {addedUsers.length === 0 ? (
               <div style={{ textAlign: 'center', color: theme.textSecondary, fontSize: '15px', padding: '40px 0' }}>
@@ -364,7 +375,6 @@ const Messages = () => {
             )}
           </div>
 
-          {/* Meet People Section */}
           {showMeetPeople && (
             <div style={{ borderTop: `1px solid ${theme.border}`, padding: '20px' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '20px' }}>
@@ -425,7 +435,6 @@ const Messages = () => {
         </>
       )}
 
-      {/* Bottom Navigation */}
       <div style={{ position: 'fixed', bottom: 0, left: '50%', transform: 'translateX(-50%)', width: '100%', maxWidth: 600, background: theme.bg, borderTop: `1px solid ${theme.border}`, display: 'flex', justifyContent: 'space-around', padding: '8px 0', zIndex: 100, paddingBottom: 'max(8px, env(safe-area-inset-bottom))' }}>
         {tabs.map(tab => { const Icon = tab.icon; const isActive = (tab.id === 'messages'); return (<button key={tab.id} onClick={() => handleTabClick(tab.id)} style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '8px 16px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4, color: isActive ? '#FF6B00' : theme.textSecondary, fontFamily: 'inherit', transition: 'color 0.2s' }}><Icon /><span style={{ fontSize: 10, fontWeight: isActive ? 600 : 400 }}>{tab.label}</span></button>); })}
       </div>
